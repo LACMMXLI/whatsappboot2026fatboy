@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MessageSenderType, OrderStatus } from '@prisma/client';
+import { MessageSenderType, OrderStatus, Product } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProductsService } from '../products/products.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrdersService } from '../orders/orders.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { MessagesService } from '../messages/messages.service';
+import { CustomersService } from '../customers/customers.service';
 import { IntentDetectorService } from './intent-detector.service';
 import { ConversationStateMachine } from './conversation-state-machine';
 import { ResponseGeneratorService } from './response-generator.service';
@@ -24,6 +25,7 @@ export class BotEngineService {
     private readonly ordersService: OrdersService,
     private readonly conversationsService: ConversationsService,
     private readonly messagesService: MessagesService,
+    private readonly customersService: CustomersService,
     private readonly intentDetector: IntentDetectorService,
     private readonly stateMachine: ConversationStateMachine,
     private readonly responseGenerator: ResponseGeneratorService,
@@ -54,22 +56,44 @@ export class BotEngineService {
       this.templatesService.getOverridesMap(job.businessId),
     ]);
 
-    const { intent, matchedProducts, fulfillmentType } = this.intentDetector.detect(
-      job.content,
-      catalog,
-      conversation.state,
-      customKeywords,
-    );
+    const categories = this.extractCategories(catalog);
+    const selectedCategory =
+      (conversation.context as { selectedCategory?: string } | null)?.selectedCategory ?? null;
 
-    let nextState = this.stateMachine.next(conversation.state, intent);
+    const { intent, matchedProducts, matchedPromotions, customerName, selectedCategory: pickedCategory } =
+      this.intentDetector.detect(
+        job.content,
+        this.scopeCatalogToCategory(catalog, conversation.state, selectedCategory),
+        conversation.state,
+        customKeywords,
+        activePromotions,
+        categories,
+      );
 
-    // Efectos secundarios sobre el carrito / pedido.
+    let customer = conversation.customer;
+    const hasCustomerName = !!customer.name;
+    const hasActivePromotions = activePromotions.length > 0;
+
+    let nextState = this.stateMachine.next(conversation.state, intent, {
+      hasCustomerName,
+      hasActivePromotions,
+    });
+
+    // Efectos secundarios sobre el cliente / carrito / pedido / contexto.
     let cart = await this.getDraftOrderIfAny(job.businessId, conversation.id);
 
-    if (
-      (intent === 'order' || intent === 'add_product') &&
-      matchedProducts.length > 0
-    ) {
+    if (intent === 'provide_name' && customerName) {
+      customer = await this.customersService.updateName(customer.id, customerName);
+    }
+
+    if (pickedCategory) {
+      await this.conversationsService.updateContext(conversation.id, {
+        ...(conversation.context as Record<string, unknown>),
+        selectedCategory: pickedCategory,
+      });
+    }
+
+    if ((intent === 'order' || intent === 'add_product') && matchedProducts.length > 0) {
       const draft = await this.ordersService.getOrCreateDraft(
         job.businessId,
         conversation.customerId,
@@ -79,39 +103,54 @@ export class BotEngineService {
         await this.ordersService.addItem(draft.id, match.product, match.quantity);
       }
       cart = await this.ordersService.findOne(job.businessId, draft.id);
+    } else if (intent === 'select_promotion' && matchedPromotions.length > 0) {
+      const draft = await this.ordersService.getOrCreateDraft(
+        job.businessId,
+        conversation.customerId,
+        conversation.id,
+      );
+      for (const match of matchedPromotions) {
+        await this.ordersService.addPromotionItem(draft.id, match.promotion, match.quantity);
+      }
+      cart = await this.ordersService.findOne(job.businessId, draft.id);
     } else if (intent === 'cancel' && cart) {
       await this.ordersService.cancel(job.businessId, cart.id);
       cart = null;
-    } else if (intent === 'confirm' && nextState === 'ORDER_CREATED') {
+    } else if (
+      (intent === 'confirm' || intent === 'affirm') &&
+      nextState === 'ORDER_CREATED'
+    ) {
       if (!cart || cart.status !== OrderStatus.DRAFT) {
         // No hay carrito valido; no se puede confirmar, se mantiene el estado anterior.
         nextState = conversation.state;
-      } else if (!fulfillmentType) {
-        nextState = 'CONFIRMING_ORDER';
       } else {
-        await this.ordersService.confirm(job.businessId, cart.id, fulfillmentType);
+        // El negocio es pickup-only: siempre se confirma para recoger.
+        await this.ordersService.confirm(job.businessId, cart.id, 'PICKUP');
         cart = await this.ordersService.findOne(job.businessId, cart.id);
       }
     } else if (intent === 'talk_to_human') {
       await this.conversationsService.toggleBotOff(conversation.id);
     }
 
-    await this.conversationsService.transitionState(
-      conversation.id,
-      nextState,
-      intent,
-    );
+    await this.conversationsService.transitionState(conversation.id, nextState, intent);
+
+    const activeCategory =
+      nextState === 'BROWSING_MENU' ? pickedCategory ?? selectedCategory : null;
 
     const responseText = this.responseGenerator.generate({
       intent,
       previousState: conversation.state,
       nextState,
       matchedProducts,
+      matchedPromotions,
       catalog,
       activePromotions,
+      categories,
+      selectedCategory: activeCategory,
       cart,
       businessName: conversation.business.name,
-      fulfillmentType,
+      pickupAddress: conversation.business.pickupAddress,
+      customerName: customer.name,
       templates: templateOverrides,
     });
 
@@ -122,6 +161,37 @@ export class BotEngineService {
       senderType: MessageSenderType.BOT,
       automationRunId: job.messageId,
     });
+  }
+
+  /** Categorias activas del catalogo, en el orden en que aparecen (sin duplicados). */
+  private extractCategories(catalog: Product[]): string[] {
+    const seen = new Set<string>();
+    const categories: string[] = [];
+    for (const product of catalog) {
+      if (!product.active) continue;
+      const category = product.category ?? 'Otros';
+      if (!seen.has(category)) {
+        seen.add(category);
+        categories.push(category);
+      }
+    }
+    return categories;
+  }
+
+  /**
+   * Mientras se navega dentro de una categoria (BROWSING_MENU), el matching
+   * de productos por texto libre se limita a esa categoria para no confundir
+   * con productos de otras categorias que compartan alguna palabra.
+   */
+  private scopeCatalogToCategory(
+    catalog: Product[],
+    state: string,
+    selectedCategory: string | null,
+  ): Product[] {
+    if (state !== 'BROWSING_MENU' || !selectedCategory) {
+      return catalog;
+    }
+    return catalog.filter((p) => (p.category ?? 'Otros') === selectedCategory);
   }
 
   private async getDraftOrderIfAny(businessId: string, conversationId: string) {

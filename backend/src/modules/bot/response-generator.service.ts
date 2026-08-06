@@ -7,7 +7,7 @@ import {
   Product,
   Promotion,
 } from '@prisma/client';
-import { BotIntent, MatchedProduct } from './intent-detector.service';
+import { BotIntent, MatchedProduct, MatchedPromotion } from './intent-detector.service';
 
 export type BotTemplates = Partial<Record<BotTemplateKey, string>>;
 
@@ -30,11 +30,19 @@ export interface ResponseContext {
   previousState: ConversationStatus;
   nextState: ConversationStatus;
   matchedProducts: MatchedProduct[];
+  matchedPromotions: MatchedPromotion[];
   catalog: Product[];
   activePromotions: Promotion[];
+  /** Categorias activas del catalogo, en el orden en que se le muestran al cliente. */
+  categories: string[];
+  /** Categoria que el cliente esta navegando ahora mismo (si el estado es BROWSING_MENU). */
+  selectedCategory: string | null;
   cart: (Order & { items: OrderItem[] }) | null;
   businessName: string;
-  fulfillmentType?: 'PICKUP' | 'DELIVERY';
+  /** Direccion de recoleccion del negocio (pickup-only). */
+  pickupAddress: string | null;
+  /** Nombre guardado del cliente (ya sea previo o recien provisto). */
+  customerName: string | null;
   /** Textos personalizados por negocio para los mensajes cortos (opcional). */
   templates?: BotTemplates;
 }
@@ -44,10 +52,12 @@ export interface ResponseContext {
  * promociones activas y estado real de la conversacion/carrito. Nunca
  * responde con texto generico desconectado del negocio.
  *
- * Los mensajes con listas dinamicas (menu, resumen de carrito) siempre se
- * arman con datos reales. Solo los mensajes cortos y autocontenidos
- * (GREETING/CANCEL/HUMAN_HANDOFF/FALLBACK) admiten un texto personalizado
- * por negocio via `ctx.templates`; si no hay override, se usa el default.
+ * El flujo es guiado: nunca se vuelca el catalogo completo de una vez. Se
+ * pregunta el nombre, se ofrece ver promociones, se navega por categorias y
+ * recien ahi se muestran los productos de UNA categoria. Los mensajes con
+ * listas dinamicas siempre se arman con datos reales. Solo los mensajes
+ * cortos y autocontenidos (GREETING/CANCEL/HUMAN_HANDOFF/FALLBACK) admiten
+ * un texto personalizado por negocio via `ctx.templates`.
  */
 @Injectable()
 export class ResponseGeneratorService {
@@ -56,18 +66,29 @@ export class ResponseGeneratorService {
       case 'talk_to_human':
         return this.applyTemplate(ctx, 'HUMAN_HANDOFF');
       case 'cancel':
-        return `${this.applyTemplate(ctx, 'CANCEL')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
+        return `${this.applyTemplate(ctx, 'CANCEL')}\n\nEscribe "hola" para empezar de nuevo.`;
+      case 'provide_name':
+        return this.renderStateView(ctx, `Mucho gusto, ${ctx.customerName}! `);
       case 'greeting':
-        return `${this.applyTemplate(ctx, 'GREETING')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
-      case 'view_menu':
-        return this.buildMenuMessage(ctx.catalog, ctx.activePromotions);
+        return this.renderStateView(ctx, `${this.applyTemplate(ctx, 'GREETING')}\n\n`);
+      case 'select_category':
+        return this.renderStateView(ctx);
       case 'order':
       case 'add_product':
+      case 'select_promotion':
         return this.buildOrderUpdateMessage(ctx);
       case 'confirm':
-        return this.buildConfirmMessage(ctx);
+        if (ctx.nextState === 'CONFIRMING_ORDER' || ctx.nextState === 'ORDER_CREATED') {
+          return this.buildConfirmMessage(ctx);
+        }
+        return this.renderStateView(ctx);
+      case 'deny':
+        if (ctx.nextState === 'BUILDING_ORDER') {
+          return `Sin problema. ${this.cartSummary(ctx.cart)}\n\nDecime que mas queres agregar, o escribe "confirmar" cuando estes listo.`;
+        }
+        return this.renderStateView(ctx);
       default:
-        return this.buildFallbackMessage(ctx);
+        return this.renderStateView(ctx);
     }
   }
 
@@ -80,65 +101,110 @@ export class ResponseGeneratorService {
     return text.replaceAll('{businessName}', ctx.businessName);
   }
 
-  private buildMenuMessage(catalog: Product[], promotions: Promotion[]): string {
-    const active = catalog.filter((p) => p.active);
-    if (active.length === 0) {
+  /**
+   * Muestra lo que corresponde para el estado actual de la conversacion
+   * (usado tanto para el primer mensaje de ese paso como para reintentar
+   * cuando no se entendio la respuesta del cliente).
+   */
+  private renderStateView(ctx: ResponseContext, prefix = ''): string {
+    switch (ctx.nextState) {
+      case 'ASKING_NAME':
+        return `${prefix}Para comenzar, decime tu nombre por favor.`;
+      case 'ASKING_PROMOTIONS':
+        return `${prefix}Antes de ver el menu, queres ver las promociones de hoy? (si/no)`;
+      case 'BROWSING_PROMOTIONS':
+        return `${prefix}${this.buildPromotionsListMessage(ctx.activePromotions)}`;
+      case 'BROWSING_CATEGORIES':
+        return `${prefix}${this.buildCategoriesListMessage(ctx.categories)}`;
+      case 'BROWSING_MENU':
+        return `${prefix}${this.buildCategoryMenuMessage(ctx.catalog, ctx.selectedCategory)}`;
+      case 'CONFIRMING_ORDER':
+        return `${prefix}${this.buildConfirmMessage({ ...ctx, nextState: 'CONFIRMING_ORDER' })}`;
+      default:
+        return `${prefix}${this.applyTemplate(ctx, 'FALLBACK')}`.trim();
+    }
+  }
+
+  private buildPromotionsListMessage(promotions: Promotion[]): string {
+    if (promotions.length === 0) {
+      return 'No tenemos promociones activas en este momento. Escribe "menu" para ver las categorias.';
+    }
+    const lines = promotions.map(
+      (p, i) =>
+        `${i + 1}. 🎉 ${p.title}${p.description ? ` — ${p.description}` : ''}: $${Number(p.price).toFixed(2)}`,
+    );
+    return [
+      'Estas son las promociones de hoy:',
+      ...lines,
+      '\nEscribe el numero o el nombre de la promo que quieras. Para ver el resto del menu, escribe "menu".',
+    ].join('\n');
+  }
+
+  private buildCategoriesListMessage(categories: string[]): string {
+    if (categories.length === 0) {
       return 'Todavia no tenemos productos cargados en el catalogo. En breve estara disponible.';
     }
-    const byCategory = new Map<string, Product[]>();
-    for (const product of active) {
-      const category = product.category ?? 'Otros';
-      byCategory.set(category, [...(byCategory.get(category) ?? []), product]);
+    const lines = categories.map((c, i) => `${i + 1}. ${c}`);
+    return [
+      'Estas son nuestras categorias:',
+      ...lines,
+      '\nEscribe el numero o el nombre de la categoria que quieras ver.',
+    ].join('\n');
+  }
+
+  private buildCategoryMenuMessage(catalog: Product[], selectedCategory: string | null): string {
+    const active = catalog.filter(
+      (p) => p.active && (p.category ?? 'Otros') === selectedCategory,
+    );
+    if (active.length === 0) {
+      return `Todavia no hay productos cargados en "${selectedCategory}". Escribe "categorias" para ver otras opciones.`;
     }
-    const lines: string[] = ['Este es nuestro menu:'];
-    for (const [category, products] of byCategory) {
-      lines.push(`\n*${category}*`);
-      for (const product of products) {
-        lines.push(`- ${product.name}: $${Number(product.price).toFixed(2)}`);
-      }
-    }
-    lines.push('\nEscribe el nombre del producto que quieras pedir.');
-    return lines.join('\n') + this.promotionsHint(promotions);
+    const lines = active.map((p) => `- ${p.name}: $${Number(p.price).toFixed(2)}`);
+    return [
+      `*${selectedCategory}*`,
+      ...lines,
+      '\nEscribe el nombre del producto que quieras pedir, o "categorias" para ver otras opciones.',
+    ].join('\n');
   }
 
   private buildOrderUpdateMessage(ctx: ResponseContext): string {
-    if (ctx.matchedProducts.length === 0 || !ctx.cart) {
-      return this.buildFallbackMessage(ctx);
+    const hasProducts = ctx.matchedProducts.length > 0;
+    const hasPromotions = ctx.matchedPromotions.length > 0;
+    if ((!hasProducts && !hasPromotions) || !ctx.cart) {
+      return this.renderStateView(ctx);
     }
-    const addedLines = ctx.matchedProducts.map(
+    const productLines = ctx.matchedProducts.map(
       (m: MatchedProduct) =>
         `- ${m.quantity}x ${m.product.name} ($${(Number(m.product.price) * m.quantity).toFixed(2)})`,
+    );
+    const promotionLines = ctx.matchedPromotions.map(
+      (m: MatchedPromotion) =>
+        `- ${m.quantity}x 🎉 ${m.promotion.title} ($${(Number(m.promotion.price) * m.quantity).toFixed(2)})`,
     );
     const total = Number(ctx.cart.total);
     return [
       'Agregue a tu pedido:',
-      ...addedLines,
+      ...productLines,
+      ...promotionLines,
       `\nTotal actual: $${total.toFixed(2)}`,
       '\nPuedes seguir agregando productos o escribir "confirmar" para continuar.',
     ].join('\n');
   }
 
   private buildConfirmMessage(ctx: ResponseContext): string {
-    if (ctx.previousState === 'BUILDING_ORDER' && ctx.nextState === 'CONFIRMING_ORDER') {
-      const summary = this.cartSummary(ctx.cart);
-      return `${summary}\n\nEs para recoger (pickup) o a domicilio (delivery)?`;
-    }
-    if (ctx.nextState === 'ORDER_CREATED' && ctx.fulfillmentType) {
+    if (ctx.nextState === 'ORDER_CREATED') {
       const total = ctx.cart ? Number(ctx.cart.total).toFixed(2) : '0.00';
-      const tipo = ctx.fulfillmentType === 'PICKUP' ? 'para recoger' : 'a domicilio';
-      return `Pedido confirmado ${tipo}. Total: $${total}. Te avisaremos cuando este listo. Gracias por tu compra!`;
+      const address = ctx.pickupAddress ? ` Lo recoges en: ${ctx.pickupAddress}.` : '';
+      const name = ctx.customerName ? `, ${ctx.customerName}` : '';
+      return `Pedido confirmado para recoger. Total: $${total}.${address} Te avisaremos cuando este listo. Gracias por tu compra${name}!`;
     }
-    if (ctx.previousState === 'CONFIRMING_ORDER') {
-      return 'Para confirmar tu pedido necesito saber si es para recoger (pickup) o a domicilio (delivery).';
+    if (ctx.nextState === 'CONFIRMING_ORDER') {
+      const summary = this.cartSummary(ctx.cart);
+      const address = ctx.pickupAddress ? `\n\nLo recoges en: ${ctx.pickupAddress}.` : '';
+      const name = ctx.customerName ? `, ${ctx.customerName}` : '';
+      return `${summary}${address}\n\nConfirmas tu pedido${name}? (si/no)`;
     }
-    return 'No tienes un pedido en curso todavia. Escribe "menu" para ver nuestras opciones.';
-  }
-
-  private buildFallbackMessage(ctx: ResponseContext): string {
-    if (ctx.catalog.filter((p) => p.active).length === 0) {
-      return 'Todavia no tenemos productos cargados en el catalogo. En breve estara disponible.';
-    }
-    return `${this.applyTemplate(ctx, 'FALLBACK')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
+    return 'No tienes un pedido en curso todavia. Escribe "hola" para comenzar.';
   }
 
   private cartSummary(cart: (Order & { items: OrderItem[] }) | null): string {
@@ -149,17 +215,5 @@ export class ResponseGeneratorService {
       (item) => `- ${item.quantity}x ${item.nameSnapshot}: $${Number(item.subtotal).toFixed(2)}`,
     );
     return ['Tu pedido:', ...lines, `Total: $${Number(cart.total).toFixed(2)}`].join('\n');
-  }
-
-  private menuHint(): string {
-    return 'Escribe "menu" para ver nuestras opciones.';
-  }
-
-  private promotionsHint(promotions: Promotion[]): string {
-    if (promotions.length === 0) {
-      return '';
-    }
-    const lines = promotions.map((p) => `🎉 ${p.title}${p.description ? `: ${p.description}` : ''}`);
-    return `\n\n${lines.join('\n')}`;
   }
 }

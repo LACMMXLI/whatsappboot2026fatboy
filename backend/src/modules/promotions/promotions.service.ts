@@ -38,6 +38,7 @@ export class PromotionsService {
         businessId,
         title: dto.title,
         description: dto.description,
+        price: dto.price,
         active: dto.active ?? true,
       },
     });

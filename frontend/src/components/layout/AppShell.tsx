@@ -5,14 +5,16 @@ import { ChatsView } from '../chats/ChatsView';
 import { ProductsScreen } from '../admin/ProductsScreen';
 import { PromotionsScreen } from '../admin/PromotionsScreen';
 import { BotConfigScreen } from '../admin/BotConfigScreen';
+import { BusinessSettingsScreen } from '../admin/BusinessSettingsScreen';
 
-type View = 'chats' | 'products' | 'promotions' | 'bot';
+type View = 'chats' | 'products' | 'promotions' | 'bot' | 'business';
 
 const TABS: { key: View; label: string }[] = [
   { key: 'chats', label: 'Chats' },
   { key: 'products', label: 'Menu' },
   { key: 'promotions', label: 'Promociones' },
   { key: 'bot', label: 'Bot' },
+  { key: 'business', label: 'Negocio' },
 ];
 
 export function AppShell() {
@@ -59,6 +61,7 @@ export function AppShell() {
       {view === 'products' && <ProductsScreen />}
       {view === 'promotions' && <PromotionsScreen />}
       {view === 'bot' && <BotConfigScreen />}
+      {view === 'business' && <BusinessSettingsScreen />}
     </div>
   );
 }

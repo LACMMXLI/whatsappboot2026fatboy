@@ -186,6 +186,7 @@ export interface Promotion {
   businessId: string;
   title: string;
   description: string | null;
+  price: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -194,5 +195,23 @@ export interface Promotion {
 export interface PromotionInput {
   title: string;
   description?: string;
+  price: number;
   active?: boolean;
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  whatsappInstanceId: string | null;
+  pickupAddress: string | null;
+  waitingThresholdMinutes: number;
+  reactivateBotOnRelease: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessSettingsInput {
+  pickupAddress?: string;
+  waitingThresholdMinutes?: number;
+  reactivateBotOnRelease?: boolean;
 }

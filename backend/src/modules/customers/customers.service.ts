@@ -42,4 +42,12 @@ export class CustomersService {
       data: { businessId, phone, name },
     });
   }
+
+  /** Usado por el motor del bot cuando el cliente responde a "cual es tu nombre". */
+  updateName(id: string, name: string): Promise<Customer> {
+    return this.prisma.customer.update({
+      where: { id },
+      data: { name },
+    });
+  }
 }

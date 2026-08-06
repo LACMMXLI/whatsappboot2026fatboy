@@ -144,6 +144,32 @@ de llamar a `IntentDetectorService`/`ResponseGeneratorService` — ver
 [intent-detector.service.spec.ts](src/modules/bot/intent-detector.service.spec.ts),
 [response-generator.service.spec.ts](src/modules/bot/response-generator.service.spec.ts).
 
+### Flujo guiado del pedido (`ConversationStatus`)
+
+El bot nunca vuelca el catalogo completo de una sola vez. Estados de
+[conversation-state-machine.ts](src/modules/bot/conversation-state-machine.ts):
+
+```
+IDLE -> ASKING_NAME (si el cliente no tiene nombre guardado)
+     -> ASKING_PROMOTIONS (solo si el negocio tiene promociones activas ahora mismo)
+     -> BROWSING_PROMOTIONS (si contesto "si") o BROWSING_CATEGORIES (si contesto "no")
+BROWSING_CATEGORIES -> BROWSING_MENU (productos de UNA categoria elegida, no todas)
+BROWSING_MENU / BROWSING_PROMOTIONS -> BUILDING_ORDER (al nombrar un producto o una promo)
+BUILDING_ORDER -> CONFIRMING_ORDER -> ORDER_CREATED
+```
+
+Notas:
+- El nombre del cliente se guarda en `Customer.name` la primera vez que lo escribe; despues no
+  se vuelve a pedir.
+- Las promociones (`Promotion.price`) son items vendibles como un producto: se pueden agregar al
+  pedido igual que cualquier otro item (`OrderItem.promotionId`), con su propio precio.
+- El negocio es **solo pickup**: no hay paso de elegir domicilio/entrega. La confirmacion final
+  incluye `Business.pickupAddress` (configurable via `PATCH /businesses/me/settings`) y el nombre
+  del cliente.
+- La categoria que el cliente esta navegando se guarda en `Conversation.context.selectedCategory`
+  para que "menu"/nombrar un producto dentro de `BROWSING_MENU` siga acotado a esa categoria.
+- Seleccion de categoria/promocion admite texto libre (nombre) o el numero de la lista mostrada.
+
 ## Despliegue
 
 Pensado para desplegar en Coolify (o cualquier PaaS compatible con Docker): define las mismas

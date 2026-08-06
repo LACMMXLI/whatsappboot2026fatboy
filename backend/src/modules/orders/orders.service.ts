@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Order, OrderStatus, Product } from '@prisma/client';
+import { Order, OrderStatus, Product, Promotion } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConversationsService } from '../conversations/conversations.service';
 
@@ -94,6 +94,43 @@ export class OrdersService {
           orderId,
           productId: product.id,
           nameSnapshot: product.name,
+          priceSnapshot: unitPrice,
+          quantity,
+          subtotal: unitPrice * quantity,
+        },
+      });
+    }
+
+    return this.recalculateTotal(orderId);
+  }
+
+  /**
+   * Igual que addItem pero para un item que viene de una promocion (tiene su
+   * propio precio, no el de un Product del catalogo).
+   */
+  async addPromotionItem(
+    orderId: string,
+    promotion: Promotion,
+    quantity: number,
+  ): Promise<Order> {
+    const existingItem = await this.prisma.orderItem.findFirst({
+      where: { orderId, promotionId: promotion.id },
+    });
+
+    const unitPrice = Number(promotion.price);
+
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity;
+      await this.prisma.orderItem.update({
+        where: { id: existingItem.id },
+        data: { quantity: newQuantity, subtotal: unitPrice * newQuantity },
+      });
+    } else {
+      await this.prisma.orderItem.create({
+        data: {
+          orderId,
+          promotionId: promotion.id,
+          nameSnapshot: promotion.title,
           priceSnapshot: unitPrice,
           quantity,
           subtotal: unitPrice * quantity,

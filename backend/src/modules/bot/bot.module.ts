@@ -12,6 +12,7 @@ import { OrdersModule } from '../orders/orders.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { MessagesModule } from '../messages/messages.module';
 import { BotConfigModule } from '../bot-config/bot-config.module';
+import { CustomersModule } from '../customers/customers.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BotConfigModule } from '../bot-config/bot-config.module';
     ConversationsModule,
     MessagesModule,
     BotConfigModule,
+    CustomersModule,
   ],
   providers: [
     IntentDetectorService,

@@ -43,12 +43,14 @@ src/
     order-panel/  OrderPanel (pedido visible dentro del chat, sin modal)
     controls/     BotToggle, TakeControlButton, ReleaseControlButton, ResolveButton
     chats/        ChatsView (sidebar + chat, la vista "Chats" del tab superior)
-    admin/        ProductsScreen (CRUD + carga masiva CSV/JSON), PromotionsScreen (CRUD)
-                  y BotConfigScreen (textos personalizables + palabras clave del bot)
+    admin/        ProductsScreen (CRUD + carga masiva CSV/JSON), PromotionsScreen (CRUD, con
+                  precio), BotConfigScreen (textos + palabras clave del bot) y
+                  BusinessSettingsScreen (direccion de recoleccion)
 ```
 
-`AppShell` ahora tiene 4 pestañas (Chats / Menu / Promociones / Bot) en el header, sin router —
-es un simple `useState` local, ya que solo son vistas dentro de la misma sesion autenticada.
+`AppShell` ahora tiene 5 pestañas (Chats / Menu / Promociones / Bot / Negocio) en el header, sin
+router — es un simple `useState` local, ya que solo son vistas dentro de la misma sesion
+autenticada.
 
 ## Estado operativo del chat (`operationalStatus`)
 

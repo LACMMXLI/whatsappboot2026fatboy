@@ -26,6 +26,9 @@ export function PromotionRow({
           <p className="truncate text-sm text-text-secondary">{promotion.description}</p>
         )}
       </div>
+      <span className="text-base font-bold text-brand">
+        ${Number(promotion.price).toFixed(2)}
+      </span>
       <div className="flex gap-2">
         <button
           type="button"

@@ -37,7 +37,11 @@ export class BusinessesService {
 
   updateSettings(
     businessId: string,
-    settings: { waitingThresholdMinutes?: number },
+    settings: {
+      waitingThresholdMinutes?: number;
+      reactivateBotOnRelease?: boolean;
+      pickupAddress?: string;
+    },
   ): Promise<Business> {
     return this.prisma.business.update({
       where: { id: businessId },

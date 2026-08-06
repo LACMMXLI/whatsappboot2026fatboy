@@ -6,10 +6,15 @@ function baseCtx(overrides: Partial<ResponseContext> = {}): ResponseContext {
     previousState: 'IDLE',
     nextState: 'IDLE',
     matchedProducts: [],
+    matchedPromotions: [],
     catalog: [],
     activePromotions: [],
+    categories: [],
+    selectedCategory: null,
     cart: null,
     businessName: 'Sushi Roll',
+    pickupAddress: null,
+    customerName: null,
     ...overrides,
   };
 }
@@ -46,5 +51,44 @@ describe('ResponseGeneratorService templates', () => {
       baseCtx({ intent: 'talk_to_human', templates: { HUMAN_HANDOFF: 'Ya te conecto con alguien.' } }),
     );
     expect(text).toBe('Ya te conecto con alguien.');
+  });
+
+  it('provide_name saluda por nombre y sigue con el siguiente paso guiado', () => {
+    const text = service.generate(
+      baseCtx({ intent: 'provide_name', nextState: 'BROWSING_CATEGORIES', customerName: 'Ana' }),
+    );
+    expect(text).toContain('Mucho gusto, Ana!');
+    expect(text).toContain('Todavia no tenemos productos');
+  });
+
+  it('ASKING_PROMOTIONS pregunta antes de mostrar el menu completo', () => {
+    const text = service.generate(baseCtx({ intent: 'affirm', nextState: 'BROWSING_PROMOTIONS' }));
+    expect(text).toContain('No tenemos promociones activas');
+  });
+
+  it('BROWSING_CATEGORIES nunca vuelca todos los productos de golpe, solo categorias', () => {
+    const text = service.generate(
+      baseCtx({
+        intent: 'select_category',
+        nextState: 'BROWSING_CATEGORIES',
+        categories: ['Hamburguesas', 'Bebidas'],
+      }),
+    );
+    expect(text).toContain('1. Hamburguesas');
+    expect(text).toContain('2. Bebidas');
+  });
+
+  it('la confirmacion final incluye la direccion de recoleccion y el nombre del cliente', () => {
+    const text = service.generate(
+      baseCtx({
+        intent: 'confirm',
+        nextState: 'ORDER_CREATED',
+        pickupAddress: 'Av. Reforma 123',
+        customerName: 'Ana',
+        cart: { total: 150 } as never,
+      }),
+    );
+    expect(text).toContain('Av. Reforma 123');
+    expect(text).toContain('Ana');
   });
 });

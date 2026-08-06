@@ -12,14 +12,16 @@ export function PromotionForm({
 }) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const [price, setPrice] = useState(initial?.price ?? '');
   const [active, setActive] = useState(initial?.active ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setError('El titulo es obligatorio.');
+    const priceNumber = Number(price);
+    if (!title.trim() || Number.isNaN(priceNumber) || priceNumber <= 0) {
+      setError('Titulo y precio (mayor a 0) son obligatorios.');
       return;
     }
     setSaving(true);
@@ -28,6 +30,7 @@ export function PromotionForm({
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
+        price: priceNumber,
         active,
       });
     } catch {
@@ -58,7 +61,20 @@ export function PromotionForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           className="resize-none rounded-xl border border-panel-border bg-panel px-3 py-2 text-base text-text-primary focus:border-brand focus:outline-none"
-          placeholder="2 rollos por $150"
+          placeholder="2 rollos de california"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm text-text-secondary">
+        Precio
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          className="h-12 rounded-xl border border-panel-border bg-panel px-3 text-base text-text-primary focus:border-brand focus:outline-none"
+          placeholder="150"
         />
       </label>
 

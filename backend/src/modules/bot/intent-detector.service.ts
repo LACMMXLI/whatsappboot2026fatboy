@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Product } from '@prisma/client';
+import { Product, Promotion } from '@prisma/client';
 import { normalizeText } from '../../common/utils/text-normalize';
 
 export type BotIntent =
@@ -10,6 +10,11 @@ export type BotIntent =
   | 'confirm'
   | 'cancel'
   | 'talk_to_human'
+  | 'provide_name'
+  | 'affirm'
+  | 'deny'
+  | 'select_category'
+  | 'select_promotion'
   | 'unknown';
 
 /** Intenciones que un negocio puede extender con palabras/frases propias. */
@@ -22,10 +27,19 @@ export interface MatchedProduct {
   quantity: number;
 }
 
+export interface MatchedPromotion {
+  promotion: Promotion;
+  quantity: number;
+}
+
 export interface IntentResult {
   intent: BotIntent;
   matchedProducts: MatchedProduct[];
-  fulfillmentType?: 'PICKUP' | 'DELIVERY';
+  matchedPromotions: MatchedPromotion[];
+  /** Nombre que el cliente escribio cuando el bot se lo pidio (intent = provide_name). */
+  customerName?: string;
+  /** Categoria elegida (intent = select_category), tal como aparece en el catalogo. */
+  selectedCategory?: string;
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -45,17 +59,22 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 const GREETING_REGEX = /\b(hola|buenas|buenos dias|buenas tardes|buenas noches|que tal)\b/;
-const VIEW_MENU_REGEX = /\b(menu|carta|catalogo)\b/;
+const VIEW_MENU_REGEX = /\b(menu|carta|catalogo|categorias?)\b/;
 const CANCEL_REGEX = /\b(cancelar|cancela|olvida(lo)?|no quiero)\b/;
 const HUMAN_REGEX = /\b(humano|persona real|agente|asesor|hablar con alguien)\b/;
 const CONFIRM_REGEX = /\b(confirmar|confirmo|si,? confirmo|listo|eso es todo|es todo|finalizar)\b/;
-const PICKUP_REGEX = /\b(recoger|pickup|paso por el|pasar por el|retiro en local)\b/;
-const DELIVERY_REGEX = /\b(delivery|domicilio|entrega|enviar a|envio a)\b/;
+const AFFIRM_REGEX = /\b(si|claro|dale|va|correcto|afirmativo|ok|okay|de acuerdo|porfavor|por favor)\b/;
+const DENY_REGEX = /\b(no|nel|negativo|paso|nop)\b/;
 
 /**
- * Detecta la intencion del mensaje y, si aplica, los productos del catalogo
- * mencionados (con cantidad). SIEMPRE se basa en el catalogo real del negocio,
- * nunca en texto generico.
+ * Detecta la intencion del mensaje y, si aplica, los productos/promociones
+ * del catalogo mencionados (con cantidad), la categoria elegida o el nombre
+ * provisto. SIEMPRE se basa en datos reales del negocio (catalogo, promos
+ * activas, categorias existentes), nunca en texto generico.
+ *
+ * El comportamiento depende fuertemente de `currentState`: en los pasos
+ * guiados (pedir nombre, si querés ver promos, elegir categoria) el texto
+ * libre del cliente se interpreta distinto que en el resto de la conversacion.
  */
 @Injectable()
 export class IntentDetectorService {
@@ -64,55 +83,149 @@ export class IntentDetectorService {
     catalog: Product[],
     currentState: string,
     customKeywords: CustomKeywords = {},
+    activePromotions: Promotion[] = [],
+    categories: string[] = [],
   ): IntentResult {
     const normalized = normalizeText(rawText);
     const matchesCustom = (intent: ExtendableIntent): boolean =>
       (customKeywords[intent] ?? []).some((phrase) =>
         normalized.includes(normalizeText(phrase)),
       );
+    const empty = { matchedProducts: [] as MatchedProduct[], matchedPromotions: [] as MatchedPromotion[] };
 
-    if (currentState === 'CONFIRMING_ORDER') {
-      if (PICKUP_REGEX.test(normalized)) {
-        return { intent: 'confirm', matchedProducts: [], fulfillmentType: 'PICKUP' };
+    // El bot esta esperando el nombre del cliente: cualquier texto se toma
+    // como nombre, salvo que pida explicitamente hablar con un humano o cancelar.
+    if (currentState === 'ASKING_NAME') {
+      if (CANCEL_REGEX.test(normalized)) {
+        return { intent: 'cancel', ...empty };
       }
-      if (DELIVERY_REGEX.test(normalized)) {
-        return { intent: 'confirm', matchedProducts: [], fulfillmentType: 'DELIVERY' };
+      if (HUMAN_REGEX.test(normalized) || matchesCustom('talk_to_human')) {
+        return { intent: 'talk_to_human', ...empty };
       }
+      const customerName = rawText.trim().slice(0, 80);
+      if (!customerName) {
+        return { intent: 'unknown', ...empty };
+      }
+      return { intent: 'provide_name', ...empty, customerName };
     }
 
     if (CANCEL_REGEX.test(normalized) || matchesCustom('cancel')) {
-      return { intent: 'cancel', matchedProducts: [] };
+      return { intent: 'cancel', ...empty };
     }
     if (HUMAN_REGEX.test(normalized) || matchesCustom('talk_to_human')) {
-      return { intent: 'talk_to_human', matchedProducts: [] };
+      return { intent: 'talk_to_human', ...empty };
     }
 
+    // El bot pregunto si quiere ver las promociones del dia (si/no).
+    if (currentState === 'ASKING_PROMOTIONS') {
+      if (VIEW_MENU_REGEX.test(normalized) || matchesCustom('view_menu')) {
+        return { intent: 'view_menu', ...empty };
+      }
+      if (AFFIRM_REGEX.test(normalized)) {
+        return { intent: 'affirm', ...empty };
+      }
+      if (DENY_REGEX.test(normalized)) {
+        return { intent: 'deny', ...empty };
+      }
+      return { intent: 'unknown', ...empty };
+    }
+
+    // El bot esta mostrando las promociones activas, esperando que elija una.
+    if (currentState === 'BROWSING_PROMOTIONS') {
+      const matchedPromotions = this.matchPromotions(normalized, activePromotions);
+      if (matchedPromotions.length > 0) {
+        return { intent: 'select_promotion', matchedProducts: [], matchedPromotions };
+      }
+      const matchedProducts = this.matchProducts(normalized, catalog);
+      if (matchedProducts.length > 0) {
+        return { intent: 'order', matchedProducts, matchedPromotions: [] };
+      }
+      if (VIEW_MENU_REGEX.test(normalized) || matchesCustom('view_menu')) {
+        return { intent: 'view_menu', ...empty };
+      }
+      return { intent: 'unknown', ...empty };
+    }
+
+    // El bot esta mostrando las categorias del catalogo, esperando que elija una.
+    if (currentState === 'BROWSING_CATEGORIES') {
+      const selectedCategory = this.matchCategory(normalized, categories);
+      if (selectedCategory) {
+        return { intent: 'select_category', ...empty, selectedCategory };
+      }
+      const matchedProducts = this.matchProducts(normalized, catalog);
+      if (matchedProducts.length > 0) {
+        return { intent: 'order', matchedProducts, matchedPromotions: [] };
+      }
+      const matchedPromotions = this.matchPromotions(normalized, activePromotions);
+      if (matchedPromotions.length > 0) {
+        return { intent: 'select_promotion', matchedProducts: [], matchedPromotions };
+      }
+      return { intent: 'unknown', ...empty };
+    }
+
+    // El bot esta mostrando los productos de UNA categoria ya elegida.
+    if (currentState === 'BROWSING_MENU') {
+      const matchedProducts = this.matchProducts(normalized, catalog);
+      if (matchedProducts.length > 0) {
+        return { intent: 'order', matchedProducts, matchedPromotions: [] };
+      }
+      const matchedPromotions = this.matchPromotions(normalized, activePromotions);
+      if (matchedPromotions.length > 0) {
+        return { intent: 'select_promotion', matchedProducts: [], matchedPromotions };
+      }
+      const selectedCategory = this.matchCategory(normalized, categories);
+      if (selectedCategory) {
+        return { intent: 'select_category', ...empty, selectedCategory };
+      }
+      if (VIEW_MENU_REGEX.test(normalized) || matchesCustom('view_menu')) {
+        return { intent: 'view_menu', ...empty };
+      }
+      return { intent: 'unknown', ...empty };
+    }
+
+    if (currentState === 'CONFIRMING_ORDER') {
+      if (AFFIRM_REGEX.test(normalized) || CONFIRM_REGEX.test(normalized) || matchesCustom('confirm')) {
+        return { intent: 'confirm', ...empty };
+      }
+      if (DENY_REGEX.test(normalized)) {
+        return { intent: 'deny', ...empty };
+      }
+      const matchedProducts = this.matchProducts(normalized, catalog);
+      if (matchedProducts.length > 0) {
+        return { intent: 'add_product', matchedProducts, matchedPromotions: [] };
+      }
+      const matchedPromotions = this.matchPromotions(normalized, activePromotions);
+      if (matchedPromotions.length > 0) {
+        return { intent: 'select_promotion', matchedProducts: [], matchedPromotions };
+      }
+      return { intent: 'unknown', ...empty };
+    }
+
+    // Resto de los estados (IDLE, BUILDING_ORDER, ORDER_CREATED): flujo generico.
     const matchedProducts = this.matchProducts(normalized, catalog);
     if (matchedProducts.length > 0) {
-      const intent: BotIntent =
-        currentState === 'BUILDING_ORDER' || currentState === 'CONFIRMING_ORDER'
-          ? 'add_product'
-          : 'order';
-      return { intent, matchedProducts };
+      const intent: BotIntent = currentState === 'BUILDING_ORDER' ? 'add_product' : 'order';
+      return { intent, matchedProducts, matchedPromotions: [] };
+    }
+    const matchedPromotions = this.matchPromotions(normalized, activePromotions);
+    if (matchedPromotions.length > 0) {
+      return { intent: 'select_promotion', matchedProducts: [], matchedPromotions };
     }
 
     if (CONFIRM_REGEX.test(normalized) || matchesCustom('confirm')) {
-      return { intent: 'confirm', matchedProducts: [] };
+      return { intent: 'confirm', ...empty };
     }
     if (VIEW_MENU_REGEX.test(normalized) || matchesCustom('view_menu')) {
-      return { intent: 'view_menu', matchedProducts: [] };
+      return { intent: 'view_menu', ...empty };
     }
     if (GREETING_REGEX.test(normalized) || matchesCustom('greeting')) {
-      return { intent: 'greeting', matchedProducts: [] };
+      return { intent: 'greeting', ...empty };
     }
 
-    return { intent: 'unknown', matchedProducts: [] };
+    return { intent: 'unknown', ...empty };
   }
 
-  private matchProducts(
-    normalizedText: string,
-    catalog: Product[],
-  ): MatchedProduct[] {
+  private matchProducts(normalizedText: string, catalog: Product[]): MatchedProduct[] {
     const words = normalizedText.split(' ');
     const matches: MatchedProduct[] = [];
 
@@ -132,6 +245,45 @@ export class IntentDetectorService {
     }
 
     return matches;
+  }
+
+  private matchPromotions(
+    normalizedText: string,
+    activePromotions: Promotion[],
+  ): MatchedPromotion[] {
+    // Seleccion por numero de lista (1-based, en el mismo orden en que se muestran).
+    const numeric = normalizedText.match(/^\d+$/);
+    if (numeric) {
+      const index = parseInt(numeric[0], 10) - 1;
+      const promotion = activePromotions[index];
+      return promotion ? [{ promotion, quantity: 1 }] : [];
+    }
+
+    const words = normalizedText.split(' ');
+    const matches: MatchedPromotion[] = [];
+    for (const promotion of activePromotions) {
+      const candidate = normalizeText(promotion.title);
+      if (!normalizedText.includes(candidate)) {
+        continue;
+      }
+      const wordIndex = words.indexOf(candidate.split(' ')[0]);
+      const quantity = this.extractQuantityBefore(words, wordIndex);
+      matches.push({ promotion, quantity });
+    }
+    return matches;
+  }
+
+  private matchCategory(normalizedText: string, categories: string[]): string | null {
+    // Seleccion por numero de lista (1-based, en el mismo orden en que se muestran).
+    const numeric = normalizedText.match(/^\d+$/);
+    if (numeric) {
+      const index = parseInt(numeric[0], 10) - 1;
+      return categories[index] ?? null;
+    }
+    const match = categories.find((category) =>
+      normalizedText.includes(normalizeText(category)),
+    );
+    return match ?? null;
   }
 
   private extractQuantityBefore(words: string[], index: number): number {

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateBusinessSettingsDto {
   @ApiPropertyOptional({
@@ -11,6 +11,15 @@ export class UpdateBusinessSettingsDto {
   @IsInt()
   @Min(1)
   waitingThresholdMinutes?: number;
+
+  @ApiPropertyOptional({
+    example: 'Av. Reforma 123, local 4',
+    description:
+      'Direccion donde el cliente recoge su pedido. El bot la incluye al confirmar un pedido (solo se maneja servicio de recoleccion).',
+  })
+  @IsOptional()
+  @IsString()
+  pickupAddress?: string;
 
   @ApiPropertyOptional({
     example: false,

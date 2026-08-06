@@ -16,8 +16,17 @@ enum UserRole {
   AGENT
 }
 
+/// Flujo guiado: IDLE -> (si falta el nombre) ASKING_NAME -> (si hay promos
+/// activas) ASKING_PROMOTIONS -> BROWSING_PROMOTIONS o BROWSING_CATEGORIES
+/// -> BROWSING_MENU (productos de UNA categoria, ya no el catalogo completo)
+/// -> BUILDING_ORDER -> CONFIRMING_ORDER -> ORDER_CREATED. El negocio es
+/// solo pickup, no hay paso de eleccion de domicilio/entrega.
 enum ConversationStatus {
   IDLE
+  ASKING_NAME
+  ASKING_PROMOTIONS
+  BROWSING_PROMOTIONS
+  BROWSING_CATEGORIES
   BROWSING_MENU
   BUILDING_ORDER
   CONFIRMING_ORDER
@@ -97,6 +106,9 @@ model Business {
   id                      String   @id @default(cuid())
   name                    String
   whatsappInstanceId      String?
+  /// Direccion donde el cliente recoge su pedido. El negocio solo maneja
+  /// servicio de recoleccion (pickup) por ahora, sin domicilio.
+  pickupAddress           String?
   waitingThresholdMinutes Int      @default(3)
   /// Si es true, PATCH /conversations/:id/release-control reactiva el bot al
   /// liberar el control humano, salvo que la request indique explicitamente
@@ -246,11 +258,15 @@ model Promotion {
   businessId  String
   title       String
   description String?
+  /// Precio de la promocion como item vendible (igual que un producto). Las
+  /// promociones cargadas antes de este campo quedan en 0 hasta que se editen.
+  price       Decimal  @default(0) @db.Decimal(10, 2)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
 
   @@index([businessId])
   @@index([businessId, active])
@@ -283,17 +299,21 @@ model Order {
 }
 
 model OrderItem {
-  id           String   @id @default(cuid())
-  orderId      String
-  productId    String?
-  nameSnapshot String
-  priceSnapshot Decimal @db.Decimal(10, 2)
-  quantity     Int      @default(1)
-  subtotal     Decimal  @db.Decimal(10, 2)
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  orderId       String
+  productId     String?
+  /// Si el item vino de una promocion en vez de un producto del catalogo.
+  /// Un OrderItem nunca tiene productId Y promotionId a la vez.
+  promotionId   String?
+  nameSnapshot  String
+  priceSnapshot Decimal  @db.Decimal(10, 2)
+  quantity      Int      @default(1)
+  subtotal      Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@map("order_items")
