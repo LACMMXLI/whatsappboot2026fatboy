@@ -9,6 +9,10 @@ WORKDIR /app
 # inyecte NODE_ENV=production como build-arg: con production, npm salta
 # devDependencies (typescript, @nestjs/cli) y "npm run build" falla.
 ENV NODE_ENV=development
+# El motor de Prisma (Rust) necesita OpenSSL; Alpine no lo trae por defecto
+# y sin el, "prisma generate"/"migrate deploy" fallan en silencio (el
+# proceso muere sin mensaje de error claro).
+RUN apk add --no-cache openssl
 
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
@@ -24,6 +28,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
