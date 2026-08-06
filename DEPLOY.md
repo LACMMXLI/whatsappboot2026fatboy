@@ -9,6 +9,40 @@ Redis) a menos que lo decidas tu mismo revisando lo que ya existe.
 > (Evolution API, y el Postgres/Redis que decidas usar) y donde pegarlos. No inventes ni un solo
 > valor: si no lo encontras en tu Coolify, no lo pongas todavia y preguntame.
 
+## Estado actual (2026-08-06) — YA DESPLEGADO
+
+Con acceso a tu Coolify (sesion que dejaste iniciada), esto ya quedo hecho:
+
+- **`backend-postgres`** y **`backend-redis`**: recursos nuevos y dedicados en el proyecto
+  `WhatsApp > production` (separados del stack de `evolution-api`, tal como se acordo).
+- **`whatsapp-backend`**: Application desde `https://github.com/LACMMXLI/whatsappboot2026fatboy`
+  (`/backend`, Dockerfile), dominio `https://apicrm.fatboymexicali.com`, **Running (healthy)**.
+  `GET /health` y `GET /docs` verificados en vivo.
+- **`whatsapp-frontend`**: Application del mismo repo (`/frontend`, Dockerfile+Nginx), dominio
+  `https://wacrm.fatboymexicali.com`, **Running (healthy)**, sirviendo el CRM con el bundle ya
+  apuntando al backend correcto.
+- El webhook de Evolution API (instancia real `Alonzo`, numero conectado) **sigue
+  desactivado a proposito** — falta tu confirmacion final para activarlo (ver seccion 4).
+
+Problemas reales que aparecieron desplegando y como se resolvieron (por si los ves de nuevo):
+1. Coolify inyecta las env vars como build-args por defecto; `NODE_ENV=production` en el build
+   hacia que `npm ci` saltara devDependencies → el build fallaba. Fix: forzar
+   `NODE_ENV=development` dentro del stage de build del `Dockerfile`.
+2. Nunca se habia podido correr `prisma migrate dev` en el entorno donde arme el proyecto (sin
+   Docker ahi). No existia ninguna migracion → `prisma migrate deploy` no tenia nada que aplicar
+   y el contenedor entraba en loop de reinicio. Fix: se genero la migracion inicial offline con
+   `prisma migrate diff --from-empty` y se commiteo.
+3. Alpine no trae OpenSSL, que el motor de Prisma necesita; sin el, el proceso moria en
+   silencio. Fix: `apk add --no-cache openssl` en ambos stages del `Dockerfile` del backend.
+4. Cloudflare (modo Flexible) + dominio configurado como `https://` en Coolify generaba un loop
+   de redirect. Fix: dominios configurados como `http://` en Coolify (igual que `evo-api`),
+   Cloudflare sigue presentando `https://` real al navegador.
+5. El wizard de "New Resource" dejaba el frontend con "Ports Exposes" en `3000` (default de
+   Nixpacks) en vez de `80` (donde escucha Nginx) → 502. Fix: cambiado a `80` manualmente.
+6. Los secretos (`DATABASE_URL`, `JWT_SECRET`, etc.) quedaban marcados "Available at Buildtime"
+   por defecto, exponiendolos en el historial de la imagen (advertencia del propio linter de
+   Docker). Fix: desmarcados para todos los vars sensibles del backend (el build no los necesita).
+
 ## Arquitectura resultante
 
 ```
