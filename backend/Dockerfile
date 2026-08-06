@@ -5,6 +5,10 @@
 # =============================================================================
 FROM node:20-alpine AS builder
 WORKDIR /app
+# Fuerza modo development en este stage aunque la plataforma (Coolify, etc.)
+# inyecte NODE_ENV=production como build-arg: con production, npm salta
+# devDependencies (typescript, @nestjs/cli) y "npm run build" falla.
+ENV NODE_ENV=development
 
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
