@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useConversationsStore } from '../store/conversationsStore';
-import { connectSocket } from '../lib/socket';
+import { connectSocket, disconnectSocket } from '../lib/socket';
 import type { Conversation, Message, Order } from '../types';
 
 /**
@@ -35,6 +35,9 @@ export function useRealtime(): void {
       socket.off('conversation.updated', onConversationUpsert);
       socket.off('message.new', onMessageNew);
       socket.off('order.updated', onOrderUpdated);
+      // Unica fuente de conexion del socket: cierra al desmontar o cuando
+      // cambia el token (logout, o antes de reconectar con uno nuevo).
+      disconnectSocket();
     };
   }, [token, upsertConversation, appendMessage, upsertOrder]);
 }

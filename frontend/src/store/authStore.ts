@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { login as loginRequest } from '../api/auth';
 import { setTokenGetter, onUnauthorized } from '../lib/apiClient';
-import { connectSocket, disconnectSocket } from '../lib/socket';
+import { disconnectSocket } from '../lib/socket';
 import type { AuthUser } from '../types';
 
 interface AuthState {
@@ -26,8 +26,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isAuthenticating: true, error: null });
         try {
           const { accessToken, user } = await loginRequest(email, password);
+          // No conecta el socket aca: lo hace useRealtime (unica fuente de
+          // conexion) reaccionando al cambio de `token`, para no abrir dos
+          // sockets en paralelo y cortar el primero a mitad de conexion.
           set({ token: accessToken, user, isAuthenticating: false });
-          connectSocket(accessToken);
         } catch {
           set({
             isAuthenticating: false,
@@ -44,12 +46,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'crm-auth',
       partialize: (state) => ({ token: state.token, user: state.user }),
-      onRehydrateStorage: () => (state) => {
-        // Al recargar la pagina con sesion guardada, reconecta el socket.
-        if (state?.token) {
-          connectSocket(state.token);
-        }
-      },
+      // La reconexion del socket al recargar la pagina tambien la maneja
+      // useRealtime (mismo motivo: una sola fuente de conexion).
     },
   ),
 );

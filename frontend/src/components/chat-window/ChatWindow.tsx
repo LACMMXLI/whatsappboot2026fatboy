@@ -10,6 +10,12 @@ import { BotToggle } from '../controls/BotToggle';
 import { TakeControlButton } from '../controls/TakeControlButton';
 import { ReleaseControlButton } from '../controls/ReleaseControlButton';
 import { ResolveButton } from '../controls/ResolveButton';
+import type { Message } from '../../types';
+
+// Referencia estable: si el selector devolviera un array literal nuevo en
+// cada render (ej. `?? []`), Zustand v5 + React detectan la referencia
+// cambiada en cada snapshot y entran en loop de renders (React error #185).
+const EMPTY_MESSAGES: Message[] = [];
 
 export function ChatWindow({
   conversationId,
@@ -22,7 +28,7 @@ export function ChatWindow({
     conversationId ? s.conversations[conversationId] : undefined,
   );
   const messages = useConversationsStore((s) =>
-    conversationId ? (s.messages[conversationId] ?? []) : [],
+    conversationId ? (s.messages[conversationId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES,
   );
   const order = useConversationsStore((s) =>
     conversationId ? (s.orders[conversationId] ?? null) : null,
