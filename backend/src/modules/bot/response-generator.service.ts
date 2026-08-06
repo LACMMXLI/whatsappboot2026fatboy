@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  BotTemplateKey,
   ConversationStatus,
   Order,
   OrderItem,
@@ -7,6 +8,22 @@ import {
   Promotion,
 } from '@prisma/client';
 import { BotIntent, MatchedProduct } from './intent-detector.service';
+
+export type BotTemplates = Partial<Record<BotTemplateKey, string>>;
+
+/**
+ * Textos por defecto de los 4 mensajes personalizables (usan `{businessName}`
+ * como placeholder). Fuente unica de verdad: tanto el motor del bot (cuando
+ * no hay override) como la API de configuracion (para mostrar el default en
+ * el CRM) usan esta misma constante.
+ */
+export const DEFAULT_BOT_TEMPLATES: Record<BotTemplateKey, string> = {
+  GREETING: 'Hola! Bienvenido a {businessName}.',
+  CANCEL: 'He cancelado tu pedido.',
+  HUMAN_HANDOFF:
+    'Entendido, en un momento un miembro de nuestro equipo va a continuar la conversacion contigo. 🙋',
+  FALLBACK: 'No entendi tu mensaje.',
+};
 
 export interface ResponseContext {
   intent: BotIntent;
@@ -18,23 +35,30 @@ export interface ResponseContext {
   cart: (Order & { items: OrderItem[] }) | null;
   businessName: string;
   fulfillmentType?: 'PICKUP' | 'DELIVERY';
+  /** Textos personalizados por negocio para los mensajes cortos (opcional). */
+  templates?: BotTemplates;
 }
 
 /**
  * Genera SIEMPRE la respuesta a partir de datos reales: catalogo cargado,
  * promociones activas y estado real de la conversacion/carrito. Nunca
  * responde con texto generico desconectado del negocio.
+ *
+ * Los mensajes con listas dinamicas (menu, resumen de carrito) siempre se
+ * arman con datos reales. Solo los mensajes cortos y autocontenidos
+ * (GREETING/CANCEL/HUMAN_HANDOFF/FALLBACK) admiten un texto personalizado
+ * por negocio via `ctx.templates`; si no hay override, se usa el default.
  */
 @Injectable()
 export class ResponseGeneratorService {
   generate(ctx: ResponseContext): string {
     switch (ctx.intent) {
       case 'talk_to_human':
-        return 'Entendido, en un momento un miembro de nuestro equipo va a continuar la conversacion contigo. 🙋';
+        return this.applyTemplate(ctx, 'HUMAN_HANDOFF');
       case 'cancel':
-        return `He cancelado tu pedido. ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
+        return `${this.applyTemplate(ctx, 'CANCEL')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
       case 'greeting':
-        return `Hola! Bienvenido a ${ctx.businessName}. ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
+        return `${this.applyTemplate(ctx, 'GREETING')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
       case 'view_menu':
         return this.buildMenuMessage(ctx.catalog, ctx.activePromotions);
       case 'order':
@@ -45,6 +69,15 @@ export class ResponseGeneratorService {
       default:
         return this.buildFallbackMessage(ctx);
     }
+  }
+
+  /**
+   * Devuelve el template del negocio para `key` (custom si existe, si no el
+   * default), con `{businessName}` sustituido.
+   */
+  private applyTemplate(ctx: ResponseContext, key: BotTemplateKey): string {
+    const text = ctx.templates?.[key] ?? DEFAULT_BOT_TEMPLATES[key];
+    return text.replaceAll('{businessName}', ctx.businessName);
   }
 
   private buildMenuMessage(catalog: Product[], promotions: Promotion[]): string {
@@ -105,7 +138,7 @@ export class ResponseGeneratorService {
     if (ctx.catalog.filter((p) => p.active).length === 0) {
       return 'Todavia no tenemos productos cargados en el catalogo. En breve estara disponible.';
     }
-    return `No entendi tu mensaje. ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
+    return `${this.applyTemplate(ctx, 'FALLBACK')} ${this.menuHint()}${this.promotionsHint(ctx.activePromotions)}`;
   }
 
   private cartSummary(cart: (Order & { items: OrderItem[] }) | null): string {

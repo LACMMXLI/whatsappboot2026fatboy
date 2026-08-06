@@ -18,6 +18,7 @@ import { BotModule } from './modules/bot/bot.module';
 import { PosModule } from './modules/pos/pos.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { HealthModule } from './modules/health/health.module';
+import { BotConfigModule } from './modules/bot-config/bot-config.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { HealthModule } from './modules/health/health.module';
     PrismaModule,
     BullmqModule,
     HealthModule,
+    BotConfigModule,
     AuthModule,
     UsersModule,
     BusinessesModule,

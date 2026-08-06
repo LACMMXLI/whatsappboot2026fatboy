@@ -139,3 +139,44 @@ export interface Order {
   updatedAt: string;
   items: OrderItem[];
 }
+
+export interface Product {
+  id: string;
+  businessId: string;
+  name: string;
+  category: string | null;
+  price: string;
+  aliases: string[];
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductInput {
+  name: string;
+  category?: string;
+  price: number;
+  aliases?: string[];
+  active?: boolean;
+}
+
+/** Los 4 mensajes cortos y autocontenidos del bot que se pueden personalizar. */
+export type BotTemplateKey = 'GREETING' | 'CANCEL' | 'HUMAN_HANDOFF' | 'FALLBACK';
+
+export interface BotTemplate {
+  key: BotTemplateKey;
+  content: string;
+  isCustom: boolean;
+  defaultContent: string;
+}
+
+/** Intenciones que admiten palabras clave propias por negocio. */
+export type BotIntentType = 'greeting' | 'view_menu' | 'confirm' | 'cancel' | 'talk_to_human';
+
+export interface BotKeywordRule {
+  id: string;
+  businessId: string;
+  intent: BotIntentType;
+  phrase: string;
+  createdAt: string;
+}

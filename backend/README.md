@@ -125,6 +125,25 @@ lo fuerza a `false`), nunca toca `resolvedAt`, y deja un mensaje `SYSTEM` en el 
 mismo patron que el resto de endpoints) impide liberar una conversacion de otro negocio.
 Tests: [conversations.service.spec.ts](src/modules/conversations/conversations.service.spec.ts).
 
+### Configuracion simple del bot (`/bot-config`)
+
+Dos cosas personalizables por negocio, sin tocar codigo:
+- **Textos** (`GET/PUT/DELETE /bot-config/templates/:key`): los 4 mensajes cortos y
+  autocontenidos del bot (`GREETING`, `CANCEL`, `HUMAN_HANDOFF`, `FALLBACK`), con
+  `{businessName}` como placeholder. `DELETE` restaura el texto por defecto. Los mensajes con
+  listas dinamicas (menu, resumen de carrito) **no** son configurables aca a proposito: se
+  siguen generando con datos reales del catalogo/pedido, no tiene sentido volverlos texto libre.
+- **Palabras clave** (`GET/POST/DELETE /bot-config/keywords`): frases adicionales por
+  intencion (`greeting`, `view_menu`, `confirm`, `cancel`, `talk_to_human`) que se suman a las
+  reglas por defecto del bot (ej. agregar "que tienen" como sinonimo de "menu"). No aplica a
+  `order`/`add_product`: esas intenciones se detectan por catalogo, no por palabra clave.
+
+`BotEngineService` carga los overrides y las palabras clave del negocio en cada mensaje antes
+de llamar a `IntentDetectorService`/`ResponseGeneratorService` — ver
+[bot-engine.service.ts](src/modules/bot/bot-engine.service.ts). Tests:
+[intent-detector.service.spec.ts](src/modules/bot/intent-detector.service.spec.ts),
+[response-generator.service.spec.ts](src/modules/bot/response-generator.service.spec.ts).
+
 ## Despliegue
 
 Pensado para desplegar en Coolify (o cualquier PaaS compatible con Docker): define las mismas

@@ -12,6 +12,11 @@ export type BotIntent =
   | 'talk_to_human'
   | 'unknown';
 
+/** Intenciones que un negocio puede extender con palabras/frases propias. */
+export type ExtendableIntent = 'greeting' | 'view_menu' | 'confirm' | 'cancel' | 'talk_to_human';
+
+export type CustomKeywords = Partial<Record<ExtendableIntent, string[]>>;
+
 export interface MatchedProduct {
   product: Product;
   quantity: number;
@@ -58,8 +63,13 @@ export class IntentDetectorService {
     rawText: string,
     catalog: Product[],
     currentState: string,
+    customKeywords: CustomKeywords = {},
   ): IntentResult {
     const normalized = normalizeText(rawText);
+    const matchesCustom = (intent: ExtendableIntent): boolean =>
+      (customKeywords[intent] ?? []).some((phrase) =>
+        normalized.includes(normalizeText(phrase)),
+      );
 
     if (currentState === 'CONFIRMING_ORDER') {
       if (PICKUP_REGEX.test(normalized)) {
@@ -70,10 +80,10 @@ export class IntentDetectorService {
       }
     }
 
-    if (CANCEL_REGEX.test(normalized)) {
+    if (CANCEL_REGEX.test(normalized) || matchesCustom('cancel')) {
       return { intent: 'cancel', matchedProducts: [] };
     }
-    if (HUMAN_REGEX.test(normalized)) {
+    if (HUMAN_REGEX.test(normalized) || matchesCustom('talk_to_human')) {
       return { intent: 'talk_to_human', matchedProducts: [] };
     }
 
@@ -86,13 +96,13 @@ export class IntentDetectorService {
       return { intent, matchedProducts };
     }
 
-    if (CONFIRM_REGEX.test(normalized)) {
+    if (CONFIRM_REGEX.test(normalized) || matchesCustom('confirm')) {
       return { intent: 'confirm', matchedProducts: [] };
     }
-    if (VIEW_MENU_REGEX.test(normalized)) {
+    if (VIEW_MENU_REGEX.test(normalized) || matchesCustom('view_menu')) {
       return { intent: 'view_menu', matchedProducts: [] };
     }
-    if (GREETING_REGEX.test(normalized)) {
+    if (GREETING_REGEX.test(normalized) || matchesCustom('greeting')) {
       return { intent: 'greeting', matchedProducts: [] };
     }
 

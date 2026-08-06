@@ -45,6 +45,7 @@ async function bootstrap() {
     .addTag('orders', 'Pedidos (carrito y confirmados)')
     .addTag('customers', 'Clientes finales')
     .addTag('pos', 'Integracion con POS')
+    .addTag('bot-config', 'Textos y palabras clave personalizables del bot')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);

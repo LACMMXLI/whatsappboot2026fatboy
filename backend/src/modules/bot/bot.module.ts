@@ -11,6 +11,7 @@ import { PromotionsModule } from '../promotions/promotions.module';
 import { OrdersModule } from '../orders/orders.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { MessagesModule } from '../messages/messages.module';
+import { BotConfigModule } from '../bot-config/bot-config.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { MessagesModule } from '../messages/messages.module';
     OrdersModule,
     ConversationsModule,
     MessagesModule,
+    BotConfigModule,
   ],
   providers: [
     IntentDetectorService,

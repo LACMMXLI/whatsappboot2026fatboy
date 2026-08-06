@@ -10,6 +10,8 @@ import { IntentDetectorService } from './intent-detector.service';
 import { ConversationStateMachine } from './conversation-state-machine';
 import { ResponseGeneratorService } from './response-generator.service';
 import { ProcessIncomingMessageJob } from '../../queue/queue.constants';
+import { BotResponseTemplatesService } from '../bot-config/bot-response-templates.service';
+import { BotKeywordRulesService } from '../bot-config/bot-keyword-rules.service';
 
 @Injectable()
 export class BotEngineService {
@@ -25,6 +27,8 @@ export class BotEngineService {
     private readonly intentDetector: IntentDetectorService,
     private readonly stateMachine: ConversationStateMachine,
     private readonly responseGenerator: ResponseGeneratorService,
+    private readonly templatesService: BotResponseTemplatesService,
+    private readonly keywordsService: BotKeywordRulesService,
   ) {}
 
   async handleIncomingMessage(job: ProcessIncomingMessageJob): Promise<void> {
@@ -43,13 +47,19 @@ export class BotEngineService {
       return;
     }
 
-    const [catalog, activePromotions] = await Promise.all([
+    const [catalog, activePromotions, customKeywords, templateOverrides] = await Promise.all([
       this.productsService.findAll(job.businessId),
       this.promotionsService.findActive(job.businessId),
+      this.keywordsService.getKeywordsMap(job.businessId),
+      this.templatesService.getOverridesMap(job.businessId),
     ]);
 
-    const { intent, matchedProducts, fulfillmentType } =
-      this.intentDetector.detect(job.content, catalog, conversation.state);
+    const { intent, matchedProducts, fulfillmentType } = this.intentDetector.detect(
+      job.content,
+      catalog,
+      conversation.state,
+      customKeywords,
+    );
 
     let nextState = this.stateMachine.next(conversation.state, intent);
 
@@ -102,6 +112,7 @@ export class BotEngineService {
       cart,
       businessName: conversation.business.name,
       fulfillmentType,
+      templates: templateOverrides,
     });
 
     await this.messagesService.sendOutbound({

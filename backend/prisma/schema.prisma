@@ -67,6 +67,28 @@ enum FulfillmentType {
   DELIVERY
 }
 
+/// Mensajes cortos y autocontenidos del bot que un negocio puede
+/// personalizar (texto libre). Las respuestas con listas dinamicas (menu,
+/// resumen de carrito) NO son configurables aca: se siguen generando con
+/// datos reales del catalogo/pedido, no tiene sentido volverlas texto libre.
+enum BotTemplateKey {
+  GREETING
+  CANCEL
+  HUMAN_HANDOFF
+  FALLBACK
+}
+
+/// Intenciones que un negocio puede extender con frases/palabras propias
+/// (ademas de las reglas por defecto del bot). "order"/"add_product" quedan
+/// afuera a proposito: esas se detectan por catalogo, no por palabra clave.
+enum BotIntentType {
+  greeting
+  view_menu
+  confirm
+  cancel
+  talk_to_human
+}
+
 // ---------------------------------------------------------------------------
 // Multi-tenant core
 // ---------------------------------------------------------------------------
@@ -90,6 +112,8 @@ model Business {
   products      Product[]
   promotions    Promotion[]
   orders        Order[]
+  botTemplates  BotResponseTemplate[]
+  botKeywords   BotKeywordRule[]
 
   @@map("businesses")
 }
@@ -291,4 +315,35 @@ model BotState {
 
   @@index([conversationId])
   @@map("bot_states")
+}
+
+// ---------------------------------------------------------------------------
+// Bot: configuracion simple por negocio (textos + palabras clave)
+// ---------------------------------------------------------------------------
+
+model BotResponseTemplate {
+  id         String         @id @default(cuid())
+  businessId String
+  key        BotTemplateKey
+  content    String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, key])
+  @@map("bot_response_templates")
+}
+
+model BotKeywordRule {
+  id         String        @id @default(cuid())
+  businessId String
+  intent     BotIntentType
+  phrase     String
+  createdAt  DateTime      @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, intent])
+  @@map("bot_keyword_rules")
 }

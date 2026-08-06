@@ -1,35 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { useConversationsStore } from '../../store/conversationsStore';
 import { useRealtime } from '../../hooks/useRealtime';
-import { ChatList } from '../chat-list/ChatList';
-import { ChatWindow } from '../chat-window/ChatWindow';
+import { ChatsView } from '../chats/ChatsView';
+import { ProductsScreen } from '../admin/ProductsScreen';
+import { BotConfigScreen } from '../admin/BotConfigScreen';
+
+type View = 'chats' | 'products' | 'bot';
+
+const TABS: { key: View; label: string }[] = [
+  { key: 'chats', label: 'Chats' },
+  { key: 'products', label: 'Menu' },
+  { key: 'bot', label: 'Bot' },
+];
 
 export function AppShell() {
   useRealtime();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const fetchConversations = useConversationsStore((s) => s.fetchConversations);
-  const selectConversation = useConversationsStore((s) => s.selectConversation);
-  const selectedId = useConversationsStore((s) => s.selectedId);
-
-  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
-
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
-
-  const handleSelect = (id: string) => {
-    selectConversation(id);
-    setMobileView('chat');
-  };
+  const [view, setView] = useState<View>('chats');
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-panel-border bg-panel px-4">
-        <span className="text-base font-bold text-text-primary">CRM WhatsApp</span>
+        <div className="flex items-center gap-4">
+          <span className="text-base font-bold text-text-primary">CRM WhatsApp</span>
+          <nav className="flex gap-1">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setView(tab.key)}
+                className={`h-9 rounded-lg px-3 text-sm font-medium transition-colors ${
+                  view === tab.key
+                    ? 'bg-brand/20 text-brand'
+                    : 'text-text-secondary hover:bg-panel-elevated'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-text-secondary">{user?.name}</span>
+          <span className="hidden text-sm text-text-secondary sm:inline">{user?.name}</span>
           <button
             type="button"
             onClick={logout}
@@ -40,24 +53,9 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[360px_1fr]">
-        <aside
-          className={`min-h-0 border-r border-panel-border bg-panel md:block ${
-            mobileView === 'list' ? 'block' : 'hidden'
-          }`}
-        >
-          <ChatList selectedId={selectedId} onSelect={handleSelect} />
-        </aside>
-
-        <main
-          className={`min-h-0 md:block ${mobileView === 'chat' ? 'block' : 'hidden'}`}
-        >
-          <ChatWindow
-            conversationId={selectedId}
-            onBack={() => setMobileView('list')}
-          />
-        </main>
-      </div>
+      {view === 'chats' && <ChatsView />}
+      {view === 'products' && <ProductsScreen />}
+      {view === 'bot' && <BotConfigScreen />}
     </div>
   );
 }

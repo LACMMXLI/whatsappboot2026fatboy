@@ -26,8 +26,9 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const token = getToken();
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
@@ -50,10 +51,12 @@ async function request<T>(
     throw new ApiError(response.status, message);
   }
 
-  if (response.status === 204) {
+  // Algunos endpoints (ej. DELETE) devuelven 200/204 sin cuerpo.
+  const text = await response.text();
+  if (!text) {
     return undefined as T;
   }
-  return (await response.json()) as T;
+  return JSON.parse(text) as T;
 }
 
 export const apiClient = {
@@ -62,4 +65,11 @@ export const apiClient = {
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  /** Para endpoints multipart (ej. subir un CSV). No setea Content-Type: el
+   * navegador arma el boundary correcto a partir del FormData. */
+  postForm: <T>(path: string, formData: FormData) =>
+    request<T>(path, { method: 'POST', body: formData }),
 };
