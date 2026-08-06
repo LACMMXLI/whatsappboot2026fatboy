@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  AGENT
+}
+
+enum ConversationStatus {
+  IDLE
+  BROWSING_MENU
+  BUILDING_ORDER
+  CONFIRMING_ORDER
+  ORDER_CREATED
+}
+
+enum MessageDirection {
+  IN
+  OUT
+}
+
+enum MessageSenderType {
+  /// Mensaje entrante real del cliente.
+  CUSTOMER
+  /// Respuesta generada por el motor automatico del bot.
+  BOT
+  /// Mensaje enviado manualmente desde el CRM por un usuario autenticado.
+  AGENT
+  /// Nota interna visible en el timeline (no se envia por WhatsApp), ej.
+  /// "conversacion asignada", "bot desactivado", "chat resuelto".
+  SYSTEM
+  /// Generado por una integracion externa (POS, campanias, automatizaciones
+  /// futuras) distinta del motor de bot propio.
+  INTEGRATION
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  SENT_TO_POS
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant core
+// ---------------------------------------------------------------------------
+
+model Business {
+  id                      String   @id @default(cuid())
+  name                    String
+  whatsappInstanceId      String?
+  waitingThresholdMinutes Int      @default(3)
+  /// Si es true, PATCH /conversations/:id/release-control reactiva el bot al
+  /// liberar el control humano, salvo que la request indique explicitamente
+  /// lo contrario con { reactivateBot: false }.
+  reactivateBotOnRelease  Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  users         User[]
+  customers     Customer[]
+  conversations Conversation[]
+  messages      Message[]
+  products      Product[]
+  promotions    Promotion[]
+  orders        Order[]
+
+  @@map("businesses")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  businessId   String
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(ADMIN)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business             Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  assignedConversations Conversation[]
+  sentMessages         Message[]      @relation("MessageSender")
+
+  @@index([businessId])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// CRM
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id         String   @id @default(cuid())
+  businessId String
+  phone      String
+  name       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business      Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  orders        Order[]
+
+  @@unique([businessId, phone])
+  @@index([businessId])
+  @@map("customers")
+}
+
+model Conversation {
+  id                    String             @id @default(cuid())
+  businessId            String
+  customerId            String
+  state                 ConversationStatus @default(IDLE)
+  botEnabled            Boolean            @default(true)
+  assignedUserId        String?
+  context               Json               @default("{}")
+  lastMessageAt         DateTime?
+  lastInboundMessageAt  DateTime?
+  lastOutboundMessageAt DateTime?
+  unreadCount           Int                @default(0)
+  automationError       String?
+  resolvedAt            DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  business     Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedUser User?       @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages     Message[]
+  orders       Order[]
+  botStates    BotState[]
+
+  @@index([businessId])
+  @@index([businessId, state])
+  @@map("conversations")
+}
+
+/// senderType se asigna SIEMPRE en el servidor (nunca lo elige el frontend):
+/// el webhook de WhatsApp escribe CUSTOMER, el motor del bot escribe BOT, el
+/// endpoint /messages/send fuerza AGENT + senderUserId desde el JWT, y las
+/// notificaciones del POS usan INTEGRATION. SYSTEM queda reservado para notas
+/// internas que no se reenvian al cliente.
+/// Nota de migracion (si se aplicara sobre una base con datos reales
+/// preexistentes): backfill direction=IN -> CUSTOMER, direction=OUT -> el
+/// dato historico no distingue bot de agente, backfillear a INTEGRATION o
+/// SYSTEM segun corresponda; nunca asumir BOT/AGENT sin evidencia.
+model Message {
+  id                 String            @id @default(cuid())
+  businessId         String
+  conversationId     String
+  direction          MessageDirection
+  type               MessageType       @default(TEXT)
+  senderType         MessageSenderType
+  senderUserId       String?
+  senderNameSnapshot String?
+  automationRunId    String?
+  content            String
+  rawPayload         Json
+  createdAt          DateTime          @default(now())
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUser   User?        @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// Catalogo
+// ---------------------------------------------------------------------------
+
+model Product {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  category   String?
+  price      Decimal  @db.Decimal(10, 2)
+  aliases    String[] @default([])
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([businessId])
+  @@index([businessId, active])
+  @@map("products")
+}
+
+model Promotion {
+  id          String   @id @default(cuid())
+  businessId  String
+  title       String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, active])
+  @@map("promotions")
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos
+// ---------------------------------------------------------------------------
+
+model Order {
+  id              String           @id @default(cuid())
+  businessId      String
+  customerId      String
+  conversationId  String?
+  status          OrderStatus      @default(DRAFT)
+  fulfillmentType FulfillmentType?
+  total           Decimal          @default(0) @db.Decimal(10, 2)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  productId    String?
+  nameSnapshot String
+  priceSnapshot Decimal @db.Decimal(10, 2)
+  quantity     Int      @default(1)
+  subtotal     Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ---------------------------------------------------------------------------
+// Bot: log de transiciones de estado (auditoria)
+// ---------------------------------------------------------------------------
+
+model BotState {
+  id             String             @id @default(cuid())
+  conversationId String
+  fromState      ConversationStatus
+  toState        ConversationStatus
+  intent         String
+  createdAt      DateTime           @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("bot_states")
+}

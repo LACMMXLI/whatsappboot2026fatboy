@@ -1,0 +1,213 @@
+Quiero que desarrolles únicamente el BACKEND de un sistema tipo SaaS para automatización de pedidos por WhatsApp enfocado en restaurantes.
+Este backend será el núcleo del sistema y debe ser completamente funcional, escalable, modular y listo para producción.
+NO generes frontend. Solo backend.
+🎯 OBJETIVO DEL BACKEND
+Este backend debe ser capaz de:
+Recibir mensajes desde WhatsApp (Evolution API)
+Procesar lógica de bot (flujos + reglas + contexto)
+Guardar conversaciones tipo CRM
+Crear y gestionar pedidos
+Exponer APIs para frontend (CRM)
+Integrarse con POS
+Manejar menú dinámico y promociones
+🧱 STACK TECNOLÓGICO
+Framework: NestJS
+Lenguaje: TypeScript
+Base de datos: PostgreSQL
+ORM: Prisma
+Redis: para eventos y colas
+BullMQ: procesamiento de jobs
+WebSockets: tiempo real
+Arquitectura modular (NestJS modules)
+📁 ESTRUCTURA DEL PROYECTO
+Organiza el backend en módulos claros:
+src/
+  modules/
+    whatsapp/
+    conversations/
+    messages/
+    bot/
+    orders/
+    customers/
+    products/
+    promotions/
+    users/
+    pos/
+    realtime/
+🔌 INTEGRACIÓN CON WHATSAPP (EVOLUTION API)
+Implementar:
+Webhook controller
+Endpoint:
+POST /webhook/whatsapp
+Debe:
+Recibir eventos de Evolution API
+Detectar mensajes entrantes
+Extraer:número
+contenido
+tipo
+
+Guardar payload completo
+Enviar evento al motor del bot
+Servicio de envío
+sendMessage(number, message)
+Debe enviar mensajes usando Evolution API.
+🧠 MOTOR DEL BOT (CRÍTICO)
+Implementar un módulo bot que:
+Procese cada mensaje entrante
+Determine intención
+Consulte estado actual
+Actualice contexto
+Genere respuesta
+Estados de conversación
+IDLE
+BROWSING_MENU
+BUILDING_ORDER
+CONFIRMING_ORDER
+ORDER_CREATED
+Intenciones mínimas
+saludo
+ver menú
+ordenar
+agregar producto
+confirmar
+cancelar
+hablar con humano
+🛒 SISTEMA DE PEDIDOS
+Lógica
+Crear pedido automáticamente al detectar intención de compra
+Order funciona como carrito (status = draft)
+Agregar productos dinámicamente
+Confirmar pedido
+Definir tipo: pickup o delivery
+Enviar a POS
+🧾 MODELO DE DATOS (PRISMA)
+Definir modelos:
+Business (multi-tenant)
+Customer
+Conversation
+Message
+Order
+OrderItem
+Product
+Promotion
+User
+BotState
+Reglas:
+Conversation guarda estado actual
+Message guarda rawPayload completo
+Order se usa como carrito
+OrderItem guarda snapshot del producto
+Todo debe estar relacionado por businessId
+🍔 MENÚ DINÁMICO (REQUERIMIENTO CRÍTICO)
+Implementar:
+Endpoint
+POST /products/upload
+Debe aceptar:
+JSON
+CSV
+Estructura:
+[
+  {
+    "name": "Rollo California",
+    "category": "Sushi",
+    "price": 100,
+    "aliases": ["california", "rollo california"]
+  }
+]
+Lógica:
+Guardar en DB
+Permitir actualización sin reinicio
+Implementar búsqueda por:nombre
+alias
+
+Usar este catálogo en el bot para interpretar pedidos
+🎯 PROMOCIONES DINÁMICAS
+Endpoint
+POST /promotions
+Estructura:
+{
+  "title": "Promo del día",
+  "description": "2 rollos por $150",
+  "active": true
+}
+Lógica:
+Obtener promociones activas
+El bot debe:mencionarlas automáticamente
+sugerirlas cuando sea relevante
+
+💬 CRM / CONVERSACIONES
+Implementar APIs para frontend:
+Conversaciones
+GET /conversations
+GET /conversations/:id
+Mensajes
+GET /messages/:conversationId
+POST /messages/send
+Funcionalidad:
+Listar chats
+Ver historial
+Enviar mensajes manuales
+Asignar conversación a usuario
+⚙️ CONTROL DEL BOT
+En Conversation:
+botEnabled: boolean
+Endpoints:
+PATCH /conversations/:id/toggle-bot
+🔔 TIEMPO REAL
+Implementar WebSockets:
+Nuevos mensajes
+Nuevas conversaciones
+Actualizaciones de pedidos
+🔗 INTEGRACIÓN POS
+Implementar módulo pos:
+Endpoint o servicio para enviar pedidos confirmados
+Preparar estructura para recibir:estado del pedido (ready, delivered)
+
+Trigger para notificar al cliente
+🧠 PROCESAMIENTO ASÍNCRONO
+Usar BullMQ para:
+Procesar mensajes entrantes
+Ejecutar lógica del bot
+Enviar respuestas
+Integrar IA en el futuro
+🚀 ESCALABILIDAD
+Debe soportar:
+Multi negocio (businessId)
+Múltiples instancias WhatsApp
+Separación de datos
+🔐 SEGURIDAD
+Validar webhooks
+Autenticación JWT para APIs internas
+Protección básica
+🧪 ENTREGABLES
+El backend debe incluir:
+Proyecto NestJS funcional
+Prisma schema completo
+Migraciones
+Webhook funcional
+Motor básico del bot funcionando
+CRUD de productos
+CRUD de promociones
+Endpoints CRM
+WebSockets funcionando
+⚠️ RESTRICCIONES
+Código limpio y modular
+Evitar sobreingeniería
+Preparado para producción
+Compatible con despliegue en Coolify
+🎯 EXPECTATIVA FINAL
+El sistema debe ser capaz de:
+Cliente escribe:
+“quiero 2 rollos california”
+
+Y automáticamente:
+Detecta producto desde catálogo dinámico
+Crea pedido en DB
+Responde al cliente
+Permite continuar flujo hasta confirmación
+💣 IMPORTANTE
+El bot NO debe responder genérico.
+Debe basarse SIEMPRE en:
+productos cargados
+promociones activas
+estado de conversación

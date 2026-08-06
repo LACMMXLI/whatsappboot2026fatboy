@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  --color-app-bg: #0b0f14;
+  --color-panel: #121821;
+  --color-panel-elevated: #1a222d;
+  --color-panel-border: #263241;
+  --color-text-primary: #e8edf2;
+  --color-text-secondary: #90a0b0;
+  --color-text-muted: #5f707f;
+
+  --color-brand: #16a34a;
+  --color-brand-strong: #15803d;
+
+  --color-bubble-in: #1a222d;
+  --color-bubble-out: #14532d;
+  --color-bubble-bot: #1e293b;
+
+  --color-status-error: #ef4444;
+  --color-status-resolved: #6b7280;
+  --color-status-waiting: #f43f5e;
+  --color-status-in-order: #f59e0b;
+  --color-status-human: #a855f7;
+  --color-status-new: #3b82f6;
+  --color-status-active: #22c55e;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-app-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Evita el zoom automatico al enfocar inputs en tablets/moviles. */
+  font-size: 16px;
+}
+
+/* Scrollbars discretos, consistentes con el tema oscuro. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-panel-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-panel-border);
+  border-radius: 8px;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
