@@ -3,13 +3,15 @@ import { useAuthStore } from '../../store/authStore';
 import { useRealtime } from '../../hooks/useRealtime';
 import { ChatsView } from '../chats/ChatsView';
 import { ProductsScreen } from '../admin/ProductsScreen';
+import { PromotionsScreen } from '../admin/PromotionsScreen';
 import { BotConfigScreen } from '../admin/BotConfigScreen';
 
-type View = 'chats' | 'products' | 'bot';
+type View = 'chats' | 'products' | 'promotions' | 'bot';
 
 const TABS: { key: View; label: string }[] = [
   { key: 'chats', label: 'Chats' },
   { key: 'products', label: 'Menu' },
+  { key: 'promotions', label: 'Promociones' },
   { key: 'bot', label: 'Bot' },
 ];
 
@@ -55,6 +57,7 @@ export function AppShell() {
 
       {view === 'chats' && <ChatsView />}
       {view === 'products' && <ProductsScreen />}
+      {view === 'promotions' && <PromotionsScreen />}
       {view === 'bot' && <BotConfigScreen />}
     </div>
   );

@@ -180,3 +180,19 @@ export interface BotKeywordRule {
   phrase: string;
   createdAt: string;
 }
+
+export interface Promotion {
+  id: string;
+  businessId: string;
+  title: string;
+  description: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PromotionInput {
+  title: string;
+  description?: string;
+  active?: boolean;
+}

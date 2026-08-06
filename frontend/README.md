@@ -43,12 +43,12 @@ src/
     order-panel/  OrderPanel (pedido visible dentro del chat, sin modal)
     controls/     BotToggle, TakeControlButton, ReleaseControlButton, ResolveButton
     chats/        ChatsView (sidebar + chat, la vista "Chats" del tab superior)
-    admin/        ProductsScreen (CRUD + carga masiva CSV/JSON) y BotConfigScreen
-                  (textos personalizables + palabras clave del bot)
+    admin/        ProductsScreen (CRUD + carga masiva CSV/JSON), PromotionsScreen (CRUD)
+                  y BotConfigScreen (textos personalizables + palabras clave del bot)
 ```
 
-`AppShell` ahora tiene 3 pestañas (Chats / Menu / Bot) en el header, sin router — es un simple
-`useState` local, ya que solo son 3 vistas dentro de la misma sesion autenticada.
+`AppShell` ahora tiene 4 pestañas (Chats / Menu / Promociones / Bot) en el header, sin router —
+es un simple `useState` local, ya que solo son vistas dentro de la misma sesion autenticada.
 
 ## Estado operativo del chat (`operationalStatus`)
 
@@ -79,23 +79,24 @@ centrada discreta (no una burbuja de chat).
    son botones grandes dentro del mismo panel de chat — no hay que navegar a otra pantalla.
    "Liberar control" solo aparece si hay un agente asignado o el bot esta desactivado.
 
-## Menu / Productos y Configuracion del bot
+## Menu / Productos, Promociones y Configuracion del bot
 
-Dos pestañas de administracion que reemplazan el uso de Swagger para lo mas comun:
+Tres pestañas de administracion que reemplazan el uso de Swagger para lo mas comun:
 - **Menu**: CRUD de productos + carga masiva (CSV o JSON) via `/products/upload`.
+- **Promociones**: CRUD simple (titulo, descripcion, activa/inactiva) contra `/promotions`. Las
+  promociones activas son las que el bot le sugiere al cliente durante la conversacion.
 - **Bot**: editar los 4 mensajes cortos personalizables del bot (saludo, cancelar, derivar a
   humano, no entendi — con `{businessName}` como placeholder) y agregar palabras clave propias
   por intencion (ej. sinonimos de "menu"). El menu, las promociones y el resumen de pedido
-  **no** son editables aca a proposito: siempre se arman con datos reales, no tiene sentido
-  volverlos texto libre. Ver el detalle de que es y no es configurable en
-  `backend/README.md`.
+  **no** son texto libre a proposito: siempre se arman con datos reales. Ver el detalle de que
+  es y no es configurable en `backend/README.md`.
 
 ## Limitaciones conocidas
 
 - No hay pantalla de registro/alta de negocio (se hace por la API/Swagger del backend); este
   frontend es solo para la operacion diaria con un usuario ya creado.
-- No hay pantallas de Promociones, Contactos ni configuracion general del negocio (umbral de
-  "esperando", reactivar bot al liberar control) todavia — solo por Swagger.
+- No hay pantallas de Contactos ni configuracion general del negocio (umbral de "esperando",
+  reactivar bot al liberar control) todavia — solo por Swagger.
 - No se pudo probar el flujo end-to-end contra un backend real en este entorno de desarrollo
   (sin Docker disponible para levantar Postgres/Redis local); si se verifico en producción real
   (Coolify) que build, login, chats y las pantallas de administracion funcionan.
