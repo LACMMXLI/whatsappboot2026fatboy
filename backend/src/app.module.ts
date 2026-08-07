@@ -22,6 +22,7 @@ import { PosModule } from './modules/pos/pos.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { HealthModule } from './modules/health/health.module';
 import { BotConfigModule } from './modules/bot-config/bot-config.module';
+import { BotFlowsModule } from './modules/bot-flows/bot-flows.module';
 import { SuperAdminModule } from './modules/superadmin/superadmin.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { SuperAdminModule } from './modules/superadmin/superadmin.module';
     BullmqModule,
     HealthModule,
     BotConfigModule,
+    BotFlowsModule,
     SuperAdminModule,
     AuthModule,
     UsersModule,

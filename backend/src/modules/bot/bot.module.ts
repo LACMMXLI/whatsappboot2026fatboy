@@ -12,6 +12,7 @@ import { OrdersModule } from '../orders/orders.module';
 import { ConversationsModule } from '../conversations/conversations.module';
 import { MessagesModule } from '../messages/messages.module';
 import { BotConfigModule } from '../bot-config/bot-config.module';
+import { BotFlowsModule } from '../bot-flows/bot-flows.module';
 import { CustomersModule } from '../customers/customers.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { CustomersModule } from '../customers/customers.module';
     ConversationsModule,
     MessagesModule,
     BotConfigModule,
+    BotFlowsModule,
     CustomersModule,
   ],
   providers: [

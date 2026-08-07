@@ -3,8 +3,18 @@ import { botConfigApi } from '../../api/botConfig';
 import type { BotIntentType, BotKeywordRule, BotTemplate, BotTemplateKey } from '../../types';
 import { TemplateEditor } from './TemplateEditor';
 import { KeywordsEditor } from './KeywordsEditor';
+import { BotFlowsEditor } from './BotFlowsEditor';
+
+type Tab = 'messages' | 'keywords' | 'flows';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'messages', label: 'Mensajes' },
+  { key: 'keywords', label: 'Palabras clave' },
+  { key: 'flows', label: 'Flujos' },
+];
 
 export function BotConfigScreen() {
+  const [tab, setTab] = useState<Tab>('messages');
   const [templates, setTemplates] = useState<BotTemplate[]>([]);
   const [keywords, setKeywords] = useState<BotKeywordRule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,31 +63,51 @@ export function BotConfigScreen() {
       <p className="text-sm text-text-secondary">
         El menu, las promociones y el resumen del pedido siempre se arman con los datos reales
         del negocio — no son editables aca. Lo que si podes personalizar son estos mensajes
-        cortos y agregar tus propias palabras clave.
+        cortos, tus propias palabras clave, y flujos propios (horarios, ubicacion, FAQs) que no
+        interrumpen a un cliente que esta armando un pedido.
       </p>
+
+      <div className="flex gap-1 border-b border-panel-border">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`px-3 py-2 text-sm font-semibold transition-colors ${
+              tab === t.key
+                ? 'border-b-2 border-brand text-brand'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {loading && <p className="text-sm text-text-muted">Cargando...</p>}
 
-      {!loading && (
-        <>
-          <div className="flex flex-col gap-3">
-            {templates.map((template) => (
-              <TemplateEditor
-                key={template.key}
-                template={template}
-                onSave={(content) => handleSaveTemplate(template.key, content)}
-                onReset={() => handleResetTemplate(template.key)}
-              />
-            ))}
-          </div>
-
-          <KeywordsEditor
-            rules={keywords}
-            onCreate={handleCreateKeyword}
-            onRemove={handleRemoveKeyword}
-          />
-        </>
+      {!loading && tab === 'messages' && (
+        <div className="flex flex-col gap-3">
+          {templates.map((template) => (
+            <TemplateEditor
+              key={template.key}
+              template={template}
+              onSave={(content) => handleSaveTemplate(template.key, content)}
+              onReset={() => handleResetTemplate(template.key)}
+            />
+          ))}
+        </div>
       )}
+
+      {!loading && tab === 'keywords' && (
+        <KeywordsEditor
+          rules={keywords}
+          onCreate={handleCreateKeyword}
+          onRemove={handleRemoveKeyword}
+        />
+      )}
+
+      {!loading && tab === 'flows' && <BotFlowsEditor />}
     </div>
   );
 }

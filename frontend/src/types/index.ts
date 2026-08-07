@@ -183,6 +183,40 @@ export interface BotKeywordRule {
   createdAt: string;
 }
 
+/** Opcion de un paso de flujo: elegirla avanza a otro paso, o termina el flujo si gotoStep es null. */
+export interface BotFlowOption {
+  label: string;
+  gotoStep: number | null;
+}
+
+export interface BotFlowStep {
+  id: string;
+  flowId: string;
+  order: number;
+  message: string;
+  options: BotFlowOption[];
+}
+
+/** Flujo personalizado por negocio (ej. "Horarios", "Ubicacion", FAQs propias). */
+export interface BotFlow {
+  id: string;
+  businessId: string;
+  name: string;
+  triggers: string[];
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  steps: BotFlowStep[];
+}
+
+/** Payload para crear/reemplazar un flujo (lo que arma el editor del CRM). */
+export interface BotFlowInput {
+  name: string;
+  triggers: string[];
+  active?: boolean;
+  steps: { message: string; options: BotFlowOption[] }[];
+}
+
 export interface Promotion {
   id: string;
   businessId: string;

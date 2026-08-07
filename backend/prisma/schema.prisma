@@ -151,6 +151,7 @@ model Business {
   orders        Order[]
   botTemplates  BotResponseTemplate[]
   botKeywords   BotKeywordRule[]
+  botFlows      BotFlow[]
 
   @@map("businesses")
 }
@@ -424,4 +425,44 @@ model BotKeywordRule {
 
   @@index([businessId, intent])
   @@map("bot_keyword_rules")
+}
+
+/// Flujo personalizado por negocio (ej. "Horarios", "Ubicacion", FAQs propias).
+/// Aditivo al motor del bot: se activa solo por una frase disparadora propia
+/// y solo cuando la conversacion esta en reposo (IDLE u ORDER_CREATED) — no
+/// puede interrumpir el flujo de armado/confirmacion de pedido, que sigue
+/// siendo 100% manejado por ConversationStateMachine sin cambios.
+model BotFlow {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  /// Frases que activan el flujo (mismo matching que BotKeywordRule:
+  /// normalizeText + includes sobre el texto entrante).
+  triggers   String[]
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  steps    BotFlowStep[]
+
+  @@index([businessId])
+  @@map("bot_flows")
+}
+
+/// Un paso de un BotFlow. `options` es un array de
+/// { label: string, gotoStep: number | null } — gotoStep null termina el
+/// flujo. `order` 0 es siempre el paso inicial (el que se envia al activar
+/// el flujo por primera vez).
+model BotFlowStep {
+  id      String @id @default(cuid())
+  flowId  String
+  order   Int
+  message String
+  options Json   @default("[]")
+
+  flow BotFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([flowId, order])
+  @@map("bot_flow_steps")
 }

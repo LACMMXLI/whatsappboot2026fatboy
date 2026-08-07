@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MessageSenderType, OrderStatus, Product } from '@prisma/client';
+import { MessageSenderType, OrderStatus, Prisma, Product } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { normalizeText } from '../../common/utils/text-normalize';
 import { ProductsService } from '../products/products.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { OrdersService } from '../orders/orders.service';
@@ -13,6 +14,14 @@ import { ResponseGeneratorService } from './response-generator.service';
 import { ProcessIncomingMessageJob } from '../../queue/queue.constants';
 import { BotResponseTemplatesService } from '../bot-config/bot-response-templates.service';
 import { BotKeywordRulesService } from '../bot-config/bot-keyword-rules.service';
+import { BotFlowsService, FlowStepOption, FlowWithSteps } from '../bot-flows/bot-flows.service';
+
+/** Guardado en Conversation.context mientras la conversacion esta dentro de
+ *  un flujo personalizado (BotFlow). Se limpia al salir del flujo. */
+interface ActiveFlowState {
+  flowId: string;
+  stepOrder: number;
+}
 
 @Injectable()
 export class BotEngineService {
@@ -31,6 +40,7 @@ export class BotEngineService {
     private readonly responseGenerator: ResponseGeneratorService,
     private readonly templatesService: BotResponseTemplatesService,
     private readonly keywordsService: BotKeywordRulesService,
+    private readonly flowsService: BotFlowsService,
   ) {}
 
   async handleIncomingMessage(job: ProcessIncomingMessageJob): Promise<void> {
@@ -55,12 +65,43 @@ export class BotEngineService {
       return;
     }
 
-    const [catalog, activePromotions, customKeywords, templateOverrides] = await Promise.all([
-      this.productsService.findAll(job.businessId),
-      this.promotionsService.findActive(job.businessId),
-      this.keywordsService.getKeywordsMap(job.businessId),
-      this.templatesService.getOverridesMap(job.businessId),
-    ]);
+    const [catalog, activePromotions, customKeywords, templateOverrides, customFlows] =
+      await Promise.all([
+        this.productsService.findAll(job.businessId),
+        this.promotionsService.findActive(job.businessId),
+        this.keywordsService.getKeywordsMap(job.businessId),
+        this.templatesService.getOverridesMap(job.businessId),
+        this.flowsService.findActiveForEngine(job.businessId),
+      ]);
+
+    // Flujos personalizados (horarios, ubicacion, FAQs propias, etc.): rama
+    // aditiva y aislada del pipeline de pedidos, ver conversation-state-machine.ts.
+    // Nunca puede interrumpir un pedido en curso -- solo se activa desde los
+    // estados "en reposo" (IDLE / ORDER_CREATED), y cualquier salida sin
+    // match cae de vuelta al pipeline normal (nunca deja la conversacion sin
+    // respuesta).
+    const context = (conversation.context as Record<string, unknown>) ?? {};
+    const activeFlow = context.activeFlow as ActiveFlowState | undefined;
+
+    if (activeFlow) {
+      const handled = await this.continueCustomFlow(
+        conversation.id,
+        context,
+        activeFlow,
+        customFlows,
+        job,
+      );
+      if (handled) return;
+    } else if (
+      (conversation.state === 'IDLE' || conversation.state === 'ORDER_CREATED') &&
+      customFlows.length > 0
+    ) {
+      const triggeredFlow = this.matchFlowTrigger(job.content, customFlows);
+      if (triggeredFlow) {
+        await this.startCustomFlow(conversation.id, context, triggeredFlow, job);
+        return;
+      }
+    }
 
     const categories = this.extractCategories(catalog);
     const selectedCategory =
@@ -93,8 +134,11 @@ export class BotEngineService {
     }
 
     if (pickedCategory) {
+      // Se parte de `context` (ya sin `activeFlow` si veniamos de un flujo
+      // personalizado recien cerrado) y NO del `conversation.context`
+      // original, que en ese caso quedaria desactualizado.
       await this.conversationsService.updateContext(conversation.id, {
-        ...(conversation.context as Record<string, unknown>),
+        ...this.withoutActiveFlow(context),
         selectedCategory: pickedCategory,
       });
     }
@@ -206,5 +250,125 @@ export class BotEngineService {
       include: { items: true },
     });
     return draft;
+  }
+
+  // ---------------------------------------------------------------------
+  // Flujos personalizados (BotFlow) -- rama aditiva, ver comentario donde
+  // se invoca en handleIncomingMessage. No comparte estado ni logica con
+  // ConversationStateMachine / IntentDetectorService / ResponseGeneratorService.
+  // ---------------------------------------------------------------------
+
+  /** ¿El texto entrante activa alguno de los flujos activos del negocio? */
+  private matchFlowTrigger(content: string, flows: FlowWithSteps[]): FlowWithSteps | null {
+    const normalized = normalizeText(content);
+    return (
+      flows.find((flow) =>
+        flow.triggers.some((trigger) => normalized.includes(normalizeText(trigger))),
+      ) ?? null
+    );
+  }
+
+  /** ¿El texto entrante elige alguna de las opciones del paso actual? Por
+   *  numero de lista (1, 2, ...) o por coincidencia parcial del label. */
+  private matchFlowOption(content: string, options: FlowStepOption[]): FlowStepOption | null {
+    if (options.length === 0) return null;
+    const normalized = normalizeText(content);
+
+    const asNumber = Number(normalized);
+    if (Number.isInteger(asNumber) && asNumber >= 1 && asNumber <= options.length) {
+      return options[asNumber - 1];
+    }
+
+    return (
+      options.find((opt) => {
+        const label = normalizeText(opt.label);
+        return label.includes(normalized) || normalized.includes(label);
+      }) ?? null
+    );
+  }
+
+  /** Envia el primer paso de un flujo recien disparado y marca la conversacion como "dentro" de el. */
+  private async startCustomFlow(
+    conversationId: string,
+    context: Record<string, unknown>,
+    flow: FlowWithSteps,
+    job: ProcessIncomingMessageJob,
+  ): Promise<void> {
+    const firstStep = flow.steps.find((s) => s.order === 0) ?? flow.steps[0];
+    if (!firstStep) {
+      // Flujo sin pasos (no deberia pasar, el DTO exige al menos 1) -- no
+      // hay nada que enviar, se ignora silenciosamente.
+      return;
+    }
+
+    await this.conversationsService.updateContext(conversationId, {
+      ...context,
+      activeFlow: { flowId: flow.id, stepOrder: firstStep.order } satisfies ActiveFlowState,
+    });
+    await this.messagesService.sendOutbound({
+      businessId: job.businessId,
+      conversationId,
+      content: firstStep.message,
+      senderType: MessageSenderType.BOT,
+      automationRunId: job.messageId,
+    });
+  }
+
+  /**
+   * Procesa un mensaje mientras la conversacion esta dentro de un flujo
+   * personalizado. Devuelve `true` si ya se respondio (el llamador debe
+   * cortar ahi) o `false` si el flujo se cerro y el mensaje debe seguir el
+   * pipeline normal -- esta es la via de escape: nunca se deja la
+   * conversacion sin una respuesta real, el pipeline normal siempre
+   * termina en el mensaje de fallback si no matchea nada.
+   */
+  private async continueCustomFlow(
+    conversationId: string,
+    context: Record<string, unknown>,
+    activeFlow: ActiveFlowState,
+    flows: FlowWithSteps[],
+    job: ProcessIncomingMessageJob,
+  ): Promise<boolean> {
+    const flow = flows.find((f) => f.id === activeFlow.flowId);
+    const currentStep = flow?.steps.find((s) => s.order === activeFlow.stepOrder);
+
+    if (flow && currentStep) {
+      const options = (currentStep.options as unknown as FlowStepOption[]) ?? [];
+      const matched = this.matchFlowOption(job.content, options);
+
+      if (matched && matched.gotoStep !== null) {
+        const nextStep = flow.steps.find((s) => s.order === matched.gotoStep);
+        if (nextStep) {
+          await this.conversationsService.updateContext(conversationId, {
+            ...context,
+            activeFlow: { flowId: flow.id, stepOrder: nextStep.order } satisfies ActiveFlowState,
+          });
+          await this.messagesService.sendOutbound({
+            businessId: job.businessId,
+            conversationId,
+            content: nextStep.message,
+            senderType: MessageSenderType.BOT,
+            automationRunId: job.messageId,
+          });
+          return true;
+        }
+      }
+    }
+
+    // Sin match, opcion de cierre (gotoStep null), paso sin opciones, o el
+    // flujo/paso ya no existe (se borro/desactivo mientras el cliente
+    // estaba adentro): se cierra el flujo y el mensaje sigue al pipeline
+    // normal sin cortar la respuesta.
+    await this.conversationsService.updateContext(
+      conversationId,
+      this.withoutActiveFlow(context) as Prisma.InputJsonValue,
+    );
+    return false;
+  }
+
+  private withoutActiveFlow(context: Record<string, unknown>): Record<string, unknown> {
+    const next = { ...context };
+    delete next.activeFlow;
+    return next;
   }
 }
