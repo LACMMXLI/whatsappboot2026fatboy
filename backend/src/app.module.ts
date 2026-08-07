@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { SentryModule } from '@sentry/nestjs/setup';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { BullmqModule } from './queue/bullmq.module';
@@ -25,6 +26,9 @@ import { SuperAdminModule } from './modules/superadmin/superadmin.module';
 
 @Module({
   imports: [
+    // Debe ir antes que el resto de los modulos para que Sentry pueda
+    // instrumentar automaticamente los providers/controllers que registran.
+    SentryModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     // Rate limit por IP para TODA la API (defensa base). Endpoints publicos
     // sensibles (login, webhooks) definen limites mas estrictos con

@@ -1,3 +1,7 @@
+// IMPORTANTE: debe ser el primer import del archivo para que Sentry pueda
+// instrumentar todo lo que se importa despues (ver src/instrument.ts).
+import './instrument';
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

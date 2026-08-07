@@ -59,6 +59,9 @@ export default () => ({
    *  link de "olvide mi contraseña" que se envia por email, ej.
    *  {frontendUrl}/reset-password?token=... */
   frontendUrl: (process.env.FRONTEND_URL ?? '').replace(/\/$/, ''),
+  /** DSN de Sentry para reporte de errores. Sin configurar, Sentry queda
+   *  deshabilitado (ver src/instrument.ts) — no rompe nada en desarrollo. */
+  sentryDsn: process.env.SENTRY_DSN ?? '',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10),

@@ -142,6 +142,7 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 | `FRONTEND_URL` | **si**, para que "olvide mi contraseña" funcione | URL publica del CRM, ej. `https://crm.tudominio.com` (SIN slash final). Sin esto, el link de recuperacion no se puede armar |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | **si**, para que "olvide mi contraseña" funcione | Credenciales SMTP de tu proveedor (Gmail, SendGrid, Mailgun, Resend, SES, etc.). Sin `SMTP_HOST`, el backend NO envia el email — solo lo deja en el log del server (util en desarrollo, no sirve para produccion) |
 | `PASSWORD_RESET_TTL_MINUTES` / `PASSWORD_RESET_THROTTLE_LIMIT` / `PASSWORD_RESET_THROTTLE_TTL_MS` | no (tiene default) | Vencimiento del link (`60` min) y anti abuso del endpoint (`3` solicitudes cada `10` min por IP) |
+| `SENTRY_DSN` | no, pero **recomendado** en produccion | DSN del proyecto `whatsappboot-backend` en Sentry (org `fatboycardona`). Sin esto, Sentry queda deshabilitado y el backend funciona igual (ver `src/instrument.ts`) — solo dejas de enterarte de errores en tiempo real |
 
 > Nota: `EVOLUTION_INSTANCE_NAME` ya no existe — cada negocio (tenant) tiene su propia
 > instancia, creada desde `/superadmin`, guardada en `Business.whatsappInstanceId`. No hay un
@@ -153,6 +154,7 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 |---|---|---|
 | `VITE_API_URL` | si | `https://api.tudominio.com` |
 | `VITE_WS_URL` | si | `https://api.tudominio.com` |
+| `VITE_SENTRY_DSN` | no, pero **recomendado** en produccion | DSN del proyecto `whatsappboot-frontend` en Sentry (org `fatboycardona`). Igual que en el backend, sin esto Sentry queda deshabilitado. Al ser una `VITE_*`, se hornea en el build — si la agregas despues, hay que reconstruir la imagen |
 
 ## 4. Configurar el webhook de Evolution API
 
@@ -274,7 +276,32 @@ incompleto — investigar antes de confiar en el proximo backup automatico.
   11 `conversations`, 252 `messages`, 1 `product`. Contenido inspeccionado (nombres de negocio,
   fechas) coherente con produccion.
 
-## 7. Seguridad antes de ir a produccion
+## 7. Monitoreo de errores (Sentry)
+
+**Estado (2026-08-07):** SDK instalado y wireado en backend y frontend. Falta un solo paso
+manual en Coolify: setear el DSN de cada proyecto como variable de entorno.
+
+- **Organizacion Sentry:** `fatboycardona` (fatboycardona.sentry.io).
+- **Proyecto backend:** `whatsappboot-backend` (plataforma NestJS). DSN va en la variable
+  `SENTRY_DSN` (runtime, no build) de la Application `whatsapp-backend` en Coolify.
+- **Proyecto frontend:** `whatsappboot-frontend` (plataforma React). DSN va en
+  `VITE_SENTRY_DSN` como **Build Variable** de la Application `whatsapp-frontend` — igual que
+  `VITE_API_URL`, se hornea en el build, asi que despues de setearla hay que reconstruir la
+  imagen (no alcanza con reiniciar el contenedor).
+- Sin esas variables configuradas, Sentry queda deshabilitado en ambos lados (no rompe nada,
+  simplemente no reporta errores) — asi es como corre hoy en desarrollo local.
+- El filtro global de excepciones del backend
+  ([http-exception.filter.ts](backend/src/common/filters/http-exception.filter.ts)) ya tiene el
+  decorador `@SentryExceptionCaptured()`, asi que cualquier error no controlado en cualquier
+  endpoint llega a Sentry automaticamente. El frontend envuelve toda la app en un
+  `Sentry.ErrorBoundary` ([main.tsx](frontend/src/main.tsx)) para capturar errores de render de
+  React ademas de excepciones sueltas.
+- Para probar que llega: pegar `SENTRY_DSN`/`VITE_SENTRY_DSN` reales, desplegar, y forzar un
+  error controlado (ej. pegarle a un endpoint inexistente con un metodo que tire 500, o el
+  snippet de prueba que da Sentry al crear el proyecto: `throw new Error('...')` en una ruta de
+  debug temporal) — deberia aparecer en Sentry → Issues en segundos.
+
+## 8. Seguridad antes de ir a produccion
 
 - `JWT_SECRET`, `WHATSAPP_WEBHOOK_SECRET` y `POS_WEBHOOK_SECRET` deben ser valores unicos y
   aleatorios, distintos de los de desarrollo — nunca los que estan en `.env.example`.
