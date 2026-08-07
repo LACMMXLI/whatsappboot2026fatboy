@@ -113,18 +113,33 @@ Objetivo: que lo que ya vendés hoy no se caiga ni se rompa por descuido básico
 - [ ] **(Pospuesto a propósito, 2026-08-07)** Alerta simple si `/health` falla o si el webhook de WhatsApp no recibe eventos en X minutos (uptime monitor tipo Better Uptime / UptimeRobot apuntando a `/health`). Decisión consciente: no bloquea vender, se retoma cuando el resto de Fase 0/1 esté más avanzado.
 - [ ] **(Pospuesto a propósito, 2026-08-07)** Completar tests: webhook de WhatsApp, products, promotions, businesses (subir de 8 a al menos ~20 specs, priorizando el camino crítico del bot). Misma razón que arriba.
 
-### Fase 1 — Convertirlo en multi-tenant autoservicio (3–5 semanas)
-Objetivo: que un negocio nuevo se pueda dar de alta sin que vos hagas nada a mano.
+### Fase 1 — Reducir trabajo manual SIN abrir registro público (3–5 semanas)
+**Decisión (2026-08-07):** el servidor es propio (self-hosted, comparte recursos con otros
+servicios del dueño — Fatboy Interno, inventario, menú, etc.), no infraestructura cloud
+escalable dedicada a esto. Registro público auto-servicio queda **descartado por ahora** —
+cualquiera podría crear un negocio y consumir recursos compartidos sin autorización, o
+sobrecargar el servidor. El control de alta sigue siendo 100% del dueño (superadmin). El
+objetivo de esta fase cambia de "que se den de alta solos" a "que dar de alta y administrar
+negocios ya aprobados sea rápido, sin tocar la base de datos ni la API a mano".
 
-- [ ] Flujo público de registro (`POST /auth/register` con verificación de email) que cree negocio + admin, reemplazando la dependencia total del panel superadmin para altas nuevas (el superadmin queda para gestión/soporte, no como único canal de alta).
-- [ ] Modelo de planes: tabla `Plan` (nombre, límites: usuarios, productos, mensajes/mes) + campo `planId` en `Business`.
-- [ ] Enforcement de límites: middleware/guard que rechaza acciones si el negocio superó su cuota (con mensaje claro, no un 500).
-- [ ] Wizard de onboarding en el frontend: conectar WhatsApp → cargar catálogo (o CSV de ejemplo) → configurar bot → listo para recibir pedidos.
-- [ ] Gestión completa de usuarios: desactivar, cambiar rol, invitación por link en vez de password creado a mano.
+- [ ] Gestión completa de usuarios: desactivar, cambiar rol, invitación por link en vez de password creado a mano por el superadmin (sigue siendo el superadmin quien decide invitar, no auto-registro).
+- [ ] Wizard de onboarding en el frontend para negocios ya aprobados: conectar WhatsApp → cargar catálogo (o CSV de ejemplo) → configurar bot → listo para recibir pedidos.
 - [ ] `AuditLog` mínimo (quién, qué acción, cuándo) en: cambios de catálogo, cambios de configuración del bot, alta/baja de usuarios, toma/liberación de control de conversación.
+- [ ] Modelo de planes/límites: tabla `Plan` (usuarios, productos, mensajes/mes) + `planId` en `Business` — acá el objetivo YA NO es cobrar por plan, sino **proteger el servidor propio**: que un negocio con mucho tráfico no ahogue a los demás ni tumbe el servidor donde corren tus otros servicios.
+- [ ] Enforcement de esos límites: guard que corta con mensaje claro (no un 500 ni el servidor colgado) si un negocio se pasa de su cuota.
+
+> Si en el futuro decidís abrir esto a terceros desconocidos, ahí sí hace falta retomar el
+> registro público con verificación de email — pero eso implica también pensar en mover a
+> infraestructura cloud dedicada (no el servidor donde vivís vos), asunto aparte.
 
 ### Fase 2 — Cobro y sostenibilidad del negocio (3–4 semanas, en paralelo con Fase 1 si hay dos personas)
 Objetivo: que el SaaS efectivamente facture.
+
+> Con registro público descartado (ver Fase 1), esta fase tambien cambia de forma: no hace
+> falta "checkout dentro del flujo de registro" si el alta la seguís aprobando vos a mano — el
+> cobro puede ser mas simple (ej. link de pago que mandas vos mismo tras aprobar el negocio, sin
+> checkout automatizado). Retomar y ajustar esta fase cuando haya varios negocios reales
+> pagando, no antes.
 
 - [ ] Integración con pasarela de pago (Stripe recomendado si hay clientes internacionales; MercadoPago si es México/LatAm — a definir según mercado objetivo).
 - [ ] Suscripción recurrente + webhook de la pasarela para activar/suspender negocios automáticamente por impago.
