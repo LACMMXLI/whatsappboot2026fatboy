@@ -48,6 +48,7 @@ src/
                   BusinessSettingsScreen (interruptor maestro del bot + direccion de recoleccion)
     contacts/     ContactsScreen (clientes de WhatsApp, buscar, saltar a su conversacion)
     kds/          KdsScreen (tablero de pedidos en vivo: Confirmados / Listos / Entregados)
+    superadmin/   Panel del dueño de la plataforma: negocios (tenants), alta con QR de WhatsApp
 ```
 
 `AppShell` ahora tiene 5 pestañas (Chats / Menu / Promociones / Bot / Negocio) en el header, sin
@@ -104,6 +105,21 @@ recientes), actualizado por WebSocket (`order.updated`) sin recargar la pantalla
 un cliente confirma un pedido por WhatsApp aparece ahi solo. Los botones grandes "Marcar listo" /
 "Marcar entregado" avisan al cliente por WhatsApp automaticamente (lo hace el backend). Se
 suscribe directo al socket ya conectado por `useRealtime` (no crea una conexion nueva).
+
+## Panel Superadmin
+
+Solo visible (icono 🛡️ al pie del rail) si `user.isSuperAdmin` vino en `true` al hacer login —
+nada de esto se muestra a un negocio normal. `App.tsx` decide entre `<AppShell>` (CRM normal) y
+`<SuperAdminPanel>` (top-level aparte, con su propio header y "Volver al CRM") segun un
+`useState` local; no hay router.
+
+- **Lista de negocios**: todos los tenants de la plataforma, con badge de estado de WhatsApp.
+- **Alta de negocio**: nombre + datos del primer admin. Al crear, el backend intenta conectar el
+  WhatsApp automaticamente y devuelve el QR de una — se muestra ahi mismo, sin pasos extra.
+- **Detalle de negocio**: `WhatsappConnectionPanel` maneja todo el ciclo de vida (conectar/QR
+  nuevo/reintentar si quedo en error/desconectar/reiniciar/eliminar). Mientras el estado es
+  `CONNECTING` hace polling cada 3s a `GET /whatsapp/status` y se detiene solo al llegar a
+  `CONNECTED` o `ERROR` — no hay que refrescar la pagina para ver que ya se conecto.
 
 ## Limitaciones conocidas
 

@@ -50,6 +50,7 @@ export interface AuthUser {
   name: string;
   role: 'ADMIN' | 'AGENT';
   businessId: string;
+  isSuperAdmin: boolean;
 }
 
 export interface LoginResponse {
@@ -217,4 +218,62 @@ export interface BusinessSettingsInput {
   botEnabled?: boolean;
   waitingThresholdMinutes?: number;
   reactivateBotOnRelease?: boolean;
+}
+
+/** Solo lo usa el panel /superadmin. */
+export type WhatsappConnectionStatus =
+  | 'PENDING'
+  | 'CONNECTING'
+  | 'CONNECTED'
+  | 'DISCONNECTED'
+  | 'ERROR';
+
+export interface SuperAdminBusiness {
+  id: string;
+  name: string;
+  whatsappInstanceId: string | null;
+  whatsappConnectionStatus: WhatsappConnectionStatus;
+  whatsappConnectionError: string | null;
+  pickupAddress: string | null;
+  botEnabled: boolean;
+  waitingThresholdMinutes: number;
+  reactivateBotOnRelease: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count: { users: number; conversations: number };
+}
+
+export interface SuperAdminTeamMember {
+  id: string;
+  email: string;
+  name: string;
+  role: 'ADMIN' | 'AGENT';
+  isSuperAdmin: boolean;
+  createdAt: string;
+}
+
+export interface SuperAdminBusinessDetail extends SuperAdminBusiness {
+  users: SuperAdminTeamMember[];
+}
+
+export interface CreateBusinessInput {
+  businessName: string;
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+}
+
+export interface QrCode {
+  base64?: string;
+  code?: string;
+}
+
+export interface CreateBusinessResult {
+  business: SuperAdminBusiness;
+  admin: { id: string; email: string; name: string; role: string };
+  qrCode?: QrCode;
+}
+
+export interface WhatsappProvisionResult {
+  qrCode?: QrCode;
 }

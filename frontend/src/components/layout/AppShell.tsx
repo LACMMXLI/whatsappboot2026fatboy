@@ -21,7 +21,7 @@ const NAV_ITEMS: { key: View; label: string; icon: string }[] = [
   { key: 'business', label: 'Negocio', icon: '🏪' },
 ];
 
-export function AppShell() {
+export function AppShell({ onOpenSuperAdmin }: { onOpenSuperAdmin?: () => void }) {
   useRealtime();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -52,6 +52,17 @@ export function AppShell() {
         ))}
 
         <div className="mt-auto flex flex-col items-center gap-1">
+          {onOpenSuperAdmin && (
+            <button
+              type="button"
+              title="Panel Superadmin"
+              aria-label="Panel Superadmin"
+              onClick={onOpenSuperAdmin}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-xl text-text-secondary hover:bg-panel-elevated"
+            >
+              🛡️
+            </button>
+          )}
           <span
             title={user?.name}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-elevated text-sm font-semibold text-text-primary"
