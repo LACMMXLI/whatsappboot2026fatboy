@@ -253,6 +253,15 @@ export class OrdersService {
     return updated;
   }
 
+  /**
+   * Notificaciones automaticas (listo/entregado) respetan el interruptor
+   * maestro del bot (Business.botEnabled): son mensajes automaticos igual
+   * que los del bot conversacional, asi que si el negocio los apago, no se
+   * manda NINGUN mensaje automatico, ni siquiera estos. Si esta encendido,
+   * se mandan sin importar si esa conversacion puntual tiene el bot
+   * desactivado (un agente puede estar atendiendola y esto sigue siendo
+   * una notificacion transaccional del pedido, no una respuesta del bot).
+   */
   private async notifyCustomer(order: OrderWithRelations, status: OrderStatus): Promise<void> {
     if (!order.conversationId) {
       return;
@@ -264,6 +273,13 @@ export class OrdersService {
       content = 'Tu pedido fue entregado. Gracias por tu compra!';
     }
     if (!content) {
+      return;
+    }
+    const business = await this.prisma.business.findUnique({
+      where: { id: order.businessId },
+      select: { botEnabled: true },
+    });
+    if (!business?.botEnabled) {
       return;
     }
     await this.messagesService.sendOutbound({

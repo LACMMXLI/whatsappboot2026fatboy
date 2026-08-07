@@ -17,13 +17,19 @@ function baseOrderRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function buildService(orderOverrides: Record<string, unknown> = {}) {
+function buildService(
+  orderOverrides: Record<string, unknown> = {},
+  businessOverrides: Record<string, unknown> = {},
+) {
   const orderRow = baseOrderRow(orderOverrides);
   const prisma = {
     order: {
       findFirst: jest.fn().mockResolvedValue(orderRow),
       findUnique: jest.fn().mockResolvedValue(orderRow),
       update: jest.fn().mockImplementation(({ data }) => ({ ...orderRow, ...data })),
+    },
+    business: {
+      findUnique: jest.fn().mockResolvedValue({ botEnabled: true, ...businessOverrides }),
     },
   };
   const conversationsService = { notifyChanged: jest.fn() };
@@ -97,5 +103,47 @@ describe('OrdersService cambios de estado: efectos centralizados', () => {
     const { service, messagesService } = buildService({ status: 'CONFIRMED' });
     await service.cancel('biz-1', 'order-1');
     expect(messagesService.sendOutbound).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService: notificaciones respetan el interruptor maestro del bot', () => {
+  it('si Business.botEnabled es false, no manda el mensaje de "listo"', async () => {
+    const { service, messagesService } = buildService(
+      { status: 'CONFIRMED' },
+      { botEnabled: false },
+    );
+    await service.ready('biz-1', 'order-1');
+    expect(messagesService.sendOutbound).not.toHaveBeenCalled();
+  });
+
+  it('si Business.botEnabled es false, no manda el mensaje de "entregado"', async () => {
+    const { service, messagesService } = buildService(
+      { status: 'READY' },
+      { botEnabled: false },
+    );
+    await service.deliver('biz-1', 'order-1');
+    expect(messagesService.sendOutbound).not.toHaveBeenCalled();
+  });
+
+  it('si Business.botEnabled es true, si manda el mensaje', async () => {
+    const { service, messagesService } = buildService(
+      { status: 'CONFIRMED' },
+      { botEnabled: true },
+    );
+    await service.ready('biz-1', 'order-1');
+    expect(messagesService.sendOutbound).toHaveBeenCalled();
+  });
+
+  it('apagar el bot no afecta el emit de order.updated (el KDS sigue actualizandose)', async () => {
+    const { service, realtimeGateway } = buildService(
+      { status: 'CONFIRMED' },
+      { botEnabled: false },
+    );
+    await service.ready('biz-1', 'order-1');
+    expect(realtimeGateway.emitToBusiness).toHaveBeenCalledWith(
+      'biz-1',
+      'order.updated',
+      expect.objectContaining({ status: 'READY' }),
+    );
   });
 });

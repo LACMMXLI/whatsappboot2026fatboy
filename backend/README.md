@@ -185,7 +185,11 @@ Flujo de estados: `DRAFT` (carrito) → `CONFIRMED` (cliente confirmo) → opcio
 `SENT_TO_POS` (si hay integracion con un POS externo) → `READY` (`PATCH /orders/:id/ready`,
 cocina/mostrador termino) → `DELIVERED` (`PATCH /orders/:id/deliver`, el cliente ya lo recogio).
 `ready`/`deliver` validan el estado de origen (`BadRequestException` si no corresponde) igual que
-`confirm`. `PATCH /orders/:id/cancel` cancela desde cualquier estado. Tests:
+`confirm`. `PATCH /orders/:id/cancel` cancela desde cualquier estado. Las notificaciones de
+listo/entregado respetan `Business.botEnabled` (el interruptor maestro): si esta apagado, no se
+manda NINGUN mensaje automatico, ni siquiera estos (son mensajes automaticos igual que los del
+bot conversacional). El emit de `order.updated` (tiempo real para el KDS) nunca se bloquea por
+esto — el tablero sigue actualizandose aunque el bot este apagado. Tests:
 [orders.service.spec.ts](src/modules/orders/orders.service.spec.ts).
 - La categoria que el cliente esta navegando se guarda en `Conversation.context.selectedCategory`
   para que "menu"/nombrar un producto dentro de `BROWSING_MENU` siga acotado a esa categoria.
