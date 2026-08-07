@@ -278,8 +278,16 @@ incompleto — investigar antes de confiar en el proximo backup automatico.
 
 ## 7. Monitoreo de errores (Sentry)
 
-**Estado (2026-08-07):** SDK instalado y wireado en backend y frontend. Falta un solo paso
-manual en Coolify: setear el DSN de cada proyecto como variable de entorno.
+**Estado (2026-08-07):** desplegado y verificado en produccion.
+`SENTRY_DSN` (backend) y `VITE_SENTRY_DSN` (frontend) cargados en Coolify, ambas Applications
+redeployadas con exito (`Running (healthy)`). Prueba end-to-end en el frontend real
+(`wacrm.fatboymexicali.com`): se forzo un error de prueba desde la consola del navegador y
+aparecio en Sentry → Issues (`WHATSAPPBOOT-FRONTEND-1`) en menos de un minuto. El backend no se
+probo con un error forzado en produccion (para no arriesgar nada sobre datos reales) — se
+confia en el deploy healthy + que el codigo sigue al pie de la letra la guia oficial del SDK
+(`SentryModule.forRoot()` + `@SentryExceptionCaptured()` en el filtro global). Si se quiere
+verificar igual, se puede provocar un 500 controlado via Swagger contra un endpoint autenticado
+y confirmar que aparece en Sentry → Issues del proyecto `whatsappboot-backend`.
 
 - **Organizacion Sentry:** `fatboycardona` (fatboycardona.sentry.io).
 - **Proyecto backend:** `whatsappboot-backend` (plataforma NestJS). DSN va en la variable

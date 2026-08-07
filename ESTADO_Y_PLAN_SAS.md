@@ -109,7 +109,7 @@ Objetivo: que lo que ya vendés hoy no se caiga ni se rompa por descuido básico
 - [x] `helmet` — headers de seguridad HTTP aplicados globalmente en `main.ts` (CSP desactivada porque `/docs` sirve Swagger UI con scripts inline). *(2026-08-07)*
 - [x] Reset de contraseña vía email (token de un solo uso, expira). *(`c039e01`, 2026-08-07)*
 - [x] Backup automático de Postgres en Coolify (diario 3am UTC a Cloudflare R2, retención 30 días en S3 / 3 días local) + prueba real de restore verificada con datos íntegros. Runbook documentado en `DEPLOY.md` §6. *(2026-08-07)*
-- [ ] Sentry (o equivalente) para errores de backend y frontend.
+- [x] Sentry para errores de backend y frontend — desplegado y verificado en producción (evento de prueba confirmado en Sentry → Issues en <1 min). Detalle en `DEPLOY.md` §7. *(2026-08-07)*
 - [ ] Alerta simple si `/health` falla o si el webhook de WhatsApp no recibe eventos en X minutos (uptime monitor tipo Better Uptime / UptimeRobot apuntando a `/health`).
 - [ ] Completar tests: webhook de WhatsApp, products, promotions, businesses (subir de 8 a al menos ~20 specs, priorizando el camino crítico del bot).
 
@@ -157,7 +157,7 @@ Objetivo: que valga más que "un bot de WhatsApp genérico".
 1. ~~Rate limiting + helmet en endpoints públicos~~ — ✅ hecho (2026-08-07).
 2. ~~Reset de password~~ — ✅ hecho (2026-08-07).
 3. ~~Backup automático de Postgres verificado~~ — ✅ hecho, con restore probado (2026-08-07).
-4. Alerting básico (uptime + Sentry) — hoy te enterás de que algo falló porque el cliente se queja, no antes.
+4. ~~Alerting básico (Sentry)~~ — ✅ hecho (2026-08-07). Falta el uptime monitor externo.
 5. Definir y construir el flujo de cobro (Fase 2) — sin esto, técnicamente no es un SaaS, es una herramienta interna que usan terceros gratis.
 
 ---
