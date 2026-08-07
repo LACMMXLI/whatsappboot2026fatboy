@@ -195,6 +195,41 @@ esto — el tablero sigue actualizandose aunque el bot este apagado. Tests:
   para que "menu"/nombrar un producto dentro de `BROWSING_MENU` siga acotado a esa categoria.
 - Seleccion de categoria/promocion admite texto libre (nombre) o el numero de la lista mostrada.
 
+### Panel superadmin (`/superadmin/*`) y multi-tenant real
+
+El registro publico (`POST /auth/register`) se elimino: ahora **solo el superadmin da de alta
+negocios nuevos**. Un `User` con `isSuperAdmin = true` (flag independiente del `role`
+ADMIN/AGENT, que es dentro de SU PROPIO negocio) puede entrar a `/superadmin/*`
+(`SuperAdminGuard`) y ver/crear TODOS los negocios de la plataforma. Los administradores de cada
+negocio siguen pudiendo agregar empleados a su propio equipo con `POST /users` (`RolesGuard` +
+`@Roles('ADMIN')`, scoped a su `businessId` via JWT — nunca pueden crear usuarios en otro tenant).
+
+`POST /superadmin/businesses` crea el negocio + su primer usuario ADMIN y ademas intenta
+aprovisionar su WhatsApp automaticamente: crea una instancia nueva y unica en Evolution API
+(nombre `biz-{businessId}`, nunca elegido por el usuario, no hay colision posible), le configura
+el webhook compartido (`{APP_URL}/webhook/whatsapp`, el mismo endpoint para todos los negocios —
+Evolution manda el campo `instance` en cada evento y el backend resuelve el negocio con
+`BusinessesService.findByWhatsappInstance`) y devuelve el QR para escanear. Si Evolution API no
+responde, **el alta del negocio nunca se pierde**: queda con `whatsappConnectionStatus = ERROR`
+y el detalle en `whatsappConnectionError`, y se puede reintentar con
+`POST /superadmin/businesses/:id/whatsapp/provision`. Resto del ciclo de vida:
+`.../whatsapp/qr` (QR nuevo), `.../whatsapp/status` (polling del estado real), `.../whatsapp/disconnect`,
+`.../whatsapp/restart`, `.../whatsapp/delete`. La API key global de Evolution vive solo en
+`EvolutionAdminService` (backend), nunca se manda al frontend.
+
+**Bug real corregido de paso:** antes de esto, `EvolutionApiService.sendMessage` mandaba TODOS
+los mensajes salientes de TODOS los negocios por una unica instancia global
+(`EVOLUTION_INSTANCE_NAME`) — un SaaS multi-tenant con un solo numero de WhatsApp compartido no
+tiene sentido. Ahora toma la instancia de `conversation.business.whatsappInstanceId`, cada
+negocio manda por su propio numero.
+
+Migracion (`20260807020000_superadmin`) marca `isSuperAdmin = true` para `alonzo@fatboy.com` y
+migra los negocios que ya tenian `whatsappInstanceId` cargado a mano a `CONNECTED` (no rompe lo
+que ya estaba funcionando). Tests:
+[super-admin.guard.spec.ts](src/common/guards/super-admin.guard.spec.ts),
+[roles.guard.spec.ts](src/common/guards/roles.guard.spec.ts),
+[superadmin.service.spec.ts](src/modules/superadmin/superadmin.service.spec.ts).
+
 ## Despliegue
 
 Pensado para desplegar en Coolify (o cualquier PaaS compatible con Docker): define las mismas

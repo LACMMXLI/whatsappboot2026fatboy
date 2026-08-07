@@ -3,22 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 
 /**
- * Cliente HTTP para Evolution API (WhatsApp).
- * Toda la configuracion (URL, API key, instancia) viene de variables de
- * entorno; no hay credenciales reales embebidas.
+ * Cliente HTTP para Evolution API (WhatsApp) — envio de mensajes salientes.
+ * La URL y la API key global vienen de variables de entorno (nunca se
+ * exponen al frontend); el nombre de INSTANCIA es propio de cada negocio
+ * (Business.whatsappInstanceId), nunca un valor global compartido — cada
+ * negocio tiene su propio numero de WhatsApp.
  */
 @Injectable()
 export class EvolutionApiService {
   private readonly logger = new Logger(EvolutionApiService.name);
   private readonly client: AxiosInstance;
-  private readonly instanceName?: string;
 
   constructor(private readonly configService: ConfigService) {
     const baseURL = this.configService.get<string>('evolutionApi.url');
     const apiKey = this.configService.get<string>('evolutionApi.apiKey');
-    this.instanceName = this.configService.get<string>(
-      'evolutionApi.instanceName',
-    );
 
     this.client = axios.create({
       baseURL,
@@ -28,22 +26,27 @@ export class EvolutionApiService {
   }
 
   /**
-   * Envia un mensaje de texto a un numero de WhatsApp via Evolution API.
+   * Envia un mensaje de texto a un numero de WhatsApp via Evolution API,
+   * usando la instancia del negocio que corresponde a esa conversacion.
    * POST {EVOLUTION_API_URL}/message/sendText/{instance}
    */
-  async sendMessage(number: string, message: string): Promise<void> {
-    if (!this.instanceName) {
+  async sendMessage(
+    instanceName: string | null | undefined,
+    number: string,
+    message: string,
+  ): Promise<void> {
+    if (!instanceName) {
       this.logger.warn(
-        `EVOLUTION_INSTANCE_NAME no configurado. Mensaje no enviado (simulado) a ${number}: "${message}"`,
+        `Negocio sin instancia de WhatsApp configurada. Mensaje no enviado (simulado) a ${number}: "${message}"`,
       );
       return;
     }
     try {
-      await this.client.post(`/message/sendText/${this.instanceName}`, {
+      await this.client.post(`/message/sendText/${instanceName}`, {
         number,
         text: message,
       });
-      this.logger.log(`Mensaje enviado a ${number}`);
+      this.logger.log(`Mensaje enviado a ${number} via instancia ${instanceName}`);
     } catch (error) {
       const detail =
         axios.isAxiosError(error) && error.response

@@ -128,15 +128,19 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 | `PORT` | si | `3000` |
 | `NODE_ENV` | si | `production` |
 | `CORS_ORIGINS` | si en produccion | `https://crm.tudominio.com` (sin esto, CORS queda abierto a cualquier origen) |
+| `APP_URL` | si (desde el superadmin) | URL publica de este backend, ej. `https://apicrm.tudominio.com` (SIN slash final). El panel `/superadmin` la usa para registrar el webhook de cada instancia de WhatsApp nueva automaticamente |
 | `DATABASE_URL` | si | connection string de tu Postgres de Coolify |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` **o** `REDIS_URL` | si (una de las dos formas) | usa `REDIS_URL` si tu Redis de Coolify te da una connection string unica |
 | `JWT_SECRET` | si | genera un valor largo y aleatorio propio, no reutilices el de desarrollo |
 | `JWT_EXPIRES_IN` | si | `7d` (o el que prefieras) |
 | `EVOLUTION_API_URL` | si | URL de tu Evolution API ya desplegada |
 | `EVOLUTION_API_KEY` | si | API key real de esa instancia |
-| `EVOLUTION_INSTANCE_NAME` | si | nombre de instancia real que vas a usar |
-| `WHATSAPP_WEBHOOK_SECRET` | si | valor propio; debe coincidir con el que configures en el webhook de Evolution (seccion 4) |
+| `WHATSAPP_WEBHOOK_SECRET` | si | valor propio; el superadmin lo usa al registrar el webhook de cada instancia nueva |
 | `POS_WEBHOOK_SECRET` | si | valor propio para `POST /pos/webhook/status` |
+
+> Nota: `EVOLUTION_INSTANCE_NAME` ya no existe — cada negocio (tenant) tiene su propia
+> instancia, creada desde `/superadmin`, guardada en `Business.whatsappInstanceId`. No hay un
+> nombre de instancia global compartido entre negocios.
 
 ### Frontend (`frontend/.env.example`, como **Build Variables**)
 

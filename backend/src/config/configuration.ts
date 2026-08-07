@@ -16,11 +16,14 @@ export default () => ({
   evolutionApi: {
     url: process.env.EVOLUTION_API_URL,
     apiKey: process.env.EVOLUTION_API_KEY,
-    instanceName: process.env.EVOLUTION_INSTANCE_NAME,
   },
   whatsapp: {
     webhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET ?? '',
   },
+  /** URL publica de este backend (sin slash final), para que el superadmin
+   *  pueda registrar automaticamente el webhook de cada instancia nueva de
+   *  Evolution API apuntando a {appUrl}/webhook/whatsapp. */
+  appUrl: (process.env.APP_URL ?? '').replace(/\/$/, ''),
   pos: {
     webhookSecret: process.env.POS_WEBHOOK_SECRET ?? '',
   },

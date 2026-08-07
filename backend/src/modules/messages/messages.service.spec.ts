@@ -8,6 +8,7 @@ function buildService() {
         id: 'conv-1',
         businessId: 'biz-1',
         customer: { phone: '5215555555555' },
+        business: { whatsappInstanceId: 'instance-biz-1' },
       }),
     },
     message: {
@@ -48,6 +49,7 @@ describe('MessagesService.sendOutbound', () => {
     await service.sendOutbound({ ...baseParams, senderType });
 
     expect(evolutionApiService.sendMessage).toHaveBeenCalledWith(
+      'instance-biz-1',
       '5215555555555',
       'hola',
     );

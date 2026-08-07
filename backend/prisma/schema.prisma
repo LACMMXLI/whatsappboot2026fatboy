@@ -76,6 +76,21 @@ enum FulfillmentType {
   DELIVERY
 }
 
+/// Estado de la conexion de WhatsApp (instancia de Evolution API) del negocio.
+enum WhatsappConnectionStatus {
+  /// Todavia no se intento crear la instancia (negocio recien creado).
+  PENDING
+  /// Instancia creada, esperando que escaneen el QR.
+  CONNECTING
+  /// WhatsApp conectado y funcionando.
+  CONNECTED
+  /// Se desconecto (logout) pero la instancia sigue existiendo.
+  DISCONNECTED
+  /// Fallo crear/conectar la instancia (ej. Evolution API no disponible).
+  /// whatsappConnectionError tiene el detalle; se puede reintentar.
+  ERROR
+}
+
 /// Mensajes cortos y autocontenidos del bot que un negocio puede
 /// personalizar (texto libre). Las respuestas con listas dinamicas (menu,
 /// resumen de carrito) NO son configurables aca: se siguen generando con
@@ -103,9 +118,15 @@ enum BotIntentType {
 // ---------------------------------------------------------------------------
 
 model Business {
-  id                      String   @id @default(cuid())
+  id                      String                   @id @default(cuid())
   name                    String
+  /// Nombre de la instancia de Evolution API (unico). Se genera solo al
+  /// crear el negocio desde el panel superadmin.
   whatsappInstanceId      String?
+  whatsappConnectionStatus WhatsappConnectionStatus @default(PENDING)
+  /// Detalle del ultimo error al crear/conectar la instancia (solo si
+  /// whatsappConnectionStatus = ERROR). Se limpia al reintentar con exito.
+  whatsappConnectionError String?
   /// Direccion donde el cliente recoge su pedido. El negocio solo maneja
   /// servicio de recoleccion (pickup) por ahora, sin domicilio.
   pickupAddress           String?
@@ -141,6 +162,10 @@ model User {
   passwordHash String
   name         String
   role         UserRole @default(ADMIN)
+  /// Dueño de la plataforma (vos): puede entrar al panel /superadmin y ver
+  /// TODOS los negocios, ademas de operar el suyo propio como cualquier
+  /// ADMIN normal. No tiene nada que ver con el rol dentro de su negocio.
+  isSuperAdmin Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

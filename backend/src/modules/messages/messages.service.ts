@@ -93,7 +93,7 @@ export class MessagesService {
   async sendOutbound(params: SendOutboundParams): Promise<Message> {
     const conversation = await this.prisma.conversation.findFirst({
       where: { id: params.conversationId, businessId: params.businessId },
-      include: { customer: true },
+      include: { customer: true, business: true },
     });
     if (!conversation) {
       throw new NotFoundException('Conversacion no encontrada');
@@ -102,6 +102,7 @@ export class MessagesService {
     const dispatchToWhatsapp = !INTERNAL_ONLY_SENDER_TYPES.includes(params.senderType);
     if (dispatchToWhatsapp) {
       await this.evolutionApiService.sendMessage(
+        conversation.business.whatsappInstanceId,
         conversation.customer.phone,
         params.content,
       );
