@@ -170,6 +170,23 @@ Notas:
   si es `false`, `BotEngineService` no responde en NINGUNA conversacion del negocio, sin importar
   el `botEnabled` de cada chat individual. Los mensajes entrantes se siguen guardando y viendo en
   el CRM, solo no se generan respuestas automaticas.
+
+### Pedidos (`/orders`) y el evento `order.updated`
+
+`OrdersService` es el UNICO lugar que escribe cambios de estado de un pedido
+(`applyStatus`), asi evita duplicar logica entre el controller, el modulo de POS y el motor del
+bot: cada cambio (confirmar, listo, entregado, cancelar) siempre emite `order.updated` por
+WebSocket (usado por el CRM para el tablero de pedidos tipo KDS) y notifica al cliente por
+WhatsApp cuando corresponde (`READY`/`DELIVERED`). Antes de este refactor, un pedido confirmado
+por el bot (el camino mas comun) no emitia `order.updated` en absoluto — quedaba silencioso hasta
+que alguien reabria esa conversacion.
+
+Flujo de estados: `DRAFT` (carrito) → `CONFIRMED` (cliente confirmo) → opcionalmente
+`SENT_TO_POS` (si hay integracion con un POS externo) → `READY` (`PATCH /orders/:id/ready`,
+cocina/mostrador termino) → `DELIVERED` (`PATCH /orders/:id/deliver`, el cliente ya lo recogio).
+`ready`/`deliver` validan el estado de origen (`BadRequestException` si no corresponde) igual que
+`confirm`. `PATCH /orders/:id/cancel` cancela desde cualquier estado. Tests:
+[orders.service.spec.ts](src/modules/orders/orders.service.spec.ts).
 - La categoria que el cliente esta navegando se guarda en `Conversation.context.selectedCategory`
   para que "menu"/nombrar un producto dentro de `BROWSING_MENU` siga acotado a esa categoria.
 - Seleccion de categoria/promocion admite texto libre (nombre) o el numero de la lista mostrada.

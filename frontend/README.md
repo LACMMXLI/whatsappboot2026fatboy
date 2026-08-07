@@ -46,6 +46,8 @@ src/
     admin/        ProductsScreen (CRUD + carga masiva CSV/JSON), PromotionsScreen (CRUD, con
                   precio), BotConfigScreen (textos + palabras clave del bot) y
                   BusinessSettingsScreen (interruptor maestro del bot + direccion de recoleccion)
+    contacts/     ContactsScreen (clientes de WhatsApp, buscar, saltar a su conversacion)
+    kds/          KdsScreen (tablero de pedidos en vivo: Confirmados / Listos / Entregados)
 ```
 
 `AppShell` ahora tiene 5 pestañas (Chats / Menu / Promociones / Bot / Negocio) en el header, sin
@@ -94,6 +96,14 @@ Tres pestañas de administracion que reemplazan el uso de Swagger para lo mas co
   por intencion (ej. sinonimos de "menu"). El menu, las promociones y el resumen de pedido
   **no** son texto libre a proposito: siempre se arman con datos reales. Ver el detalle de que
   es y no es configurable en `backend/README.md`.
+
+## Pedidos (KDS)
+
+Pestaña "Pedidos" (🧾): tablero en vivo con tres columnas (Confirmados / Listos / Entregados
+recientes), actualizado por WebSocket (`order.updated`) sin recargar la pantalla — cada vez que
+un cliente confirma un pedido por WhatsApp aparece ahi solo. Los botones grandes "Marcar listo" /
+"Marcar entregado" avisan al cliente por WhatsApp automaticamente (lo hace el backend). Se
+suscribe directo al socket ya conectado por `useRealtime` (no crea una conexion nueva).
 
 ## Limitaciones conocidas
 

@@ -138,6 +138,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
+  customer?: Customer;
 }
 
 export interface Product {

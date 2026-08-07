@@ -7,12 +7,14 @@ import { PromotionsScreen } from '../admin/PromotionsScreen';
 import { BotConfigScreen } from '../admin/BotConfigScreen';
 import { BusinessSettingsScreen } from '../admin/BusinessSettingsScreen';
 import { ContactsScreen } from '../contacts/ContactsScreen';
+import { KdsScreen } from '../kds/KdsScreen';
 
-type View = 'chats' | 'products' | 'promotions' | 'bot' | 'business' | 'contacts';
+type View = 'chats' | 'products' | 'promotions' | 'bot' | 'business' | 'contacts' | 'kds';
 
 const NAV_ITEMS: { key: View; label: string; icon: string }[] = [
   { key: 'chats', label: 'Chats', icon: '💬' },
   { key: 'contacts', label: 'Contactos', icon: '👥' },
+  { key: 'kds', label: 'Pedidos', icon: '🧾' },
   { key: 'products', label: 'Menu', icon: '🍔' },
   { key: 'promotions', label: 'Promociones', icon: '🎉' },
   { key: 'bot', label: 'Bot', icon: '🤖' },
@@ -71,6 +73,7 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1 flex-col">
         {view === 'chats' && <ChatsView />}
         {view === 'contacts' && <ContactsScreen onOpenConversation={() => setView('chats')} />}
+        {view === 'kds' && <KdsScreen />}
         {view === 'products' && <ProductsScreen />}
         {view === 'promotions' && <PromotionsScreen />}
         {view === 'bot' && <BotConfigScreen />}

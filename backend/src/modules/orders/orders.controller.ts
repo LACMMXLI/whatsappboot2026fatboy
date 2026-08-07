@@ -4,20 +4,16 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { BusinessId } from '../../common/decorators/business-id.decorator';
 import { OrdersService } from './orders.service';
 import { ConfirmOrderDto } from './dto/confirm-order.dto';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 @ApiTags('orders')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
-  constructor(
-    private readonly ordersService: OrdersService,
-    private readonly realtimeGateway: RealtimeGateway,
-  ) {}
+  constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Listar pedidos del negocio' })
+  @ApiOperation({ summary: 'Listar pedidos del negocio (para el KDS / tablero de pedidos)' })
   findAll(@BusinessId() businessId: string) {
     return this.ordersService.findAll(businessId);
   }
@@ -44,25 +40,34 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Confirmar un pedido (carrito -> confirmado) definiendo pickup/delivery',
   })
-  async confirm(
+  confirm(
     @BusinessId() businessId: string,
     @Param('id') id: string,
     @Body() dto: ConfirmOrderDto,
   ) {
-    const order = await this.ordersService.confirm(
-      businessId,
-      id,
-      dto.fulfillmentType,
-    );
-    this.realtimeGateway.emitToBusiness(businessId, 'order.updated', order);
-    return order;
+    return this.ordersService.confirm(businessId, id, dto.fulfillmentType);
+  }
+
+  @Patch(':id/ready')
+  @ApiOperation({
+    summary:
+      'Marcar un pedido como listo para recoger (cocina/mostrador). Notifica al cliente por WhatsApp.',
+  })
+  ready(@BusinessId() businessId: string, @Param('id') id: string) {
+    return this.ordersService.ready(businessId, id);
+  }
+
+  @Patch(':id/deliver')
+  @ApiOperation({
+    summary: 'Marcar un pedido como entregado/recogido. Notifica al cliente por WhatsApp.',
+  })
+  deliver(@BusinessId() businessId: string, @Param('id') id: string) {
+    return this.ordersService.deliver(businessId, id);
   }
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancelar un pedido' })
-  async cancel(@BusinessId() businessId: string, @Param('id') id: string) {
-    const order = await this.ordersService.cancel(businessId, id);
-    this.realtimeGateway.emitToBusiness(businessId, 'order.updated', order);
-    return order;
+  cancel(@BusinessId() businessId: string, @Param('id') id: string) {
+    return this.ordersService.cancel(businessId, id);
   }
 }

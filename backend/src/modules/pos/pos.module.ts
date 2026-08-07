@@ -4,11 +4,9 @@ import { PosController } from './pos.controller';
 import { POS_PROVIDER } from './pos-provider.interface';
 import { LoggingPosProvider } from './logging-pos.provider';
 import { OrdersModule } from '../orders/orders.module';
-import { MessagesModule } from '../messages/messages.module';
-import { RealtimeModule } from '../realtime/realtime.module';
 
 @Module({
-  imports: [OrdersModule, MessagesModule, RealtimeModule],
+  imports: [OrdersModule],
   controllers: [PosController],
   providers: [
     PosService,
