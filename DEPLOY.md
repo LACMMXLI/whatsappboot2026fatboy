@@ -196,7 +196,85 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
       SMTP) → el link abre `/reset-password`, permite elegir contraseña nueva, y con esa
       contraseña nueva el login funciona
 
-## 6. Seguridad antes de ir a produccion
+## 6. Backups de Postgres y prueba de restore (runbook)
+
+**Estado (2026-08-07):** configurado y probado de punta a punta. Backup automatico diario a
+Cloudflare R2 + restore verificado en un contenedor descartable, con datos reales confirmados
+(3 negocios, 6 pedidos, 252 mensajes, etc. — integros).
+
+### 6.1 Configuracion actual
+
+- **Recurso Coolify:** `WhatsApp > production > backend-postgres`, pestaña **Backups**.
+- **Frecuencia:** diaria, `0 3 * * *` (3:00 AM UTC).
+- **Destino:** local (disco del servidor, retencion **3 dias**) + **S3 Storage** llamado
+  `Cloudflare R2 - Postgres Backups` (retencion **30 dias**).
+- **Bucket R2:** `whatsappboot-postgres-backups`, cuenta de Cloudflare
+  `alonzocardona123@gmail.com`, endpoint
+  `https://00b3124382ab1f611f9729e7035f7d8b.r2.cloudflarestorage.com`, region `auto`.
+- **Token R2:** `coolify-postgres-backups`, permiso "Lectura y escritura de objetos" acotado
+  **solo** a ese bucket (no a toda la cuenta R2) — si hay que rotarlo, se genera uno nuevo desde
+  Cloudflare Dashboard → R2 → Manage API Tokens y se actualiza en Coolify → Storages →
+  `Cloudflare R2 - Postgres Backups`.
+- Los dumps quedan en Coolify bajo
+  `/data/coolify/backups/databases/root-team-0/backend-postgres-<id>/pg-dump-<db>-<timestamp>.dmp`
+  (formato custom de `pg_dump`, no texto plano — hace falta `pg_restore`, no `psql < archivo`).
+
+### 6.2 Como disparar un backup manual
+
+Coolify → `backend-postgres` → pestaña **Backups** → click en la fila del cron → boton
+**"Backup Now"**. El resultado (exito/error, tamaño, y si llego a Local/S3) aparece en la
+seccion **Executions** de esa misma pantalla en unos segundos.
+
+### 6.3 Como probar un restore (hacerlo cada vez que cambie el esquema de forma importante,
+o al menos una vez por trimestre)
+
+Nunca restaurar directo sobre `backend-postgres` de produccion. Usar siempre un contenedor
+Postgres temporal y descartable:
+
+```bash
+# 1. Ubicar el dump mas reciente (ya sea en el servidor o descargado del bucket R2 via el boton
+#    "Download" de la fila en Executions)
+DUMP=/data/coolify/backups/databases/root-team-0/backend-postgres-<id>/pg-dump-<db>-<timestamp>.dmp
+
+# 2. Levantar Postgres temporal aislado
+docker run -d --name restore-test-pg \
+  -e POSTGRES_PASSWORD=temp_restore_pw \
+  -e POSTGRES_DB=restore_test \
+  postgres:16-alpine   # usar la misma version major que produccion
+
+# 3. Esperar a que este listo
+docker exec restore-test-pg pg_isready -U postgres
+
+# 4. Copiar el dump adentro y restaurar
+docker cp "$DUMP" restore-test-pg:/tmp/dump.dmp
+docker exec -e PGPASSWORD=temp_restore_pw restore-test-pg \
+  pg_restore -U postgres -d restore_test --no-owner --no-privileges -v /tmp/dump.dmp
+
+# 5. Verificar: deberian aparecer las 14 tablas del esquema y conteos > 0 en las que tengan datos
+docker exec -e PGPASSWORD=temp_restore_pw restore-test-pg \
+  psql -U postgres -d restore_test -c "\dt"
+docker exec -e PGPASSWORD=temp_restore_pw restore-test-pg \
+  psql -U postgres -d restore_test -c \
+  "select (select count(*) from businesses) businesses, (select count(*) from orders) orders, (select count(*) from users) users;"
+
+# 6. Limpiar SIEMPRE al terminar (no dejar el contenedor de prueba corriendo)
+docker rm -f restore-test-pg
+```
+
+Si el paso 4 imprime `pg_restore: error: ...` (mas alla de `already exists`, que es normal si se
+corre dos veces sobre la misma base de prueba sin limpiarla antes), el backup esta corrupto o
+incompleto — investigar antes de confiar en el proximo backup automatico.
+
+### 6.4 Ultima prueba de restore verificada
+
+- **Fecha:** 2026-08-07.
+- **Dump probado:** `pg-dump-whatsapp_orders-1786110056.dmp` (244.76 KB).
+- **Resultado:** 14/14 tablas restauradas, todos los indices y foreign keys recreados sin
+  error. Conteos exactos: 3 `businesses`, 3 `users`, 6 `orders`, 11 `customers`,
+  11 `conversations`, 252 `messages`, 1 `product`. Contenido inspeccionado (nombres de negocio,
+  fechas) coherente con produccion.
+
+## 7. Seguridad antes de ir a produccion
 
 - `JWT_SECRET`, `WHATSAPP_WEBHOOK_SECRET` y `POS_WEBHOOK_SECRET` deben ser valores unicos y
   aleatorios, distintos de los de desarrollo — nunca los que estan en `.env.example`.

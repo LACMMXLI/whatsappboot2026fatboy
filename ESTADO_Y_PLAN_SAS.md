@@ -90,7 +90,7 @@ Agrupado por qué tan bloqueante es para vender esto a terceros sin que vos oper
 |---|---|---|---|---|
 | ~~Fuerza bruta sobre `/auth/login`~~ | — | — | ~~Sin rate limiting~~ | ✅ Resuelto: `@nestjs/throttler` global (`1a7eddf`) |
 | Caída de mensajes en tiempo real al escalar a 2+ réplicas | Media (si crecés) | Operador no ve chats nuevos sin refrescar | Estado de WS en memoria de un proceso | Redis adapter para Socket.IO antes de escalar réplicas |
-| Pérdida total de datos ante falla de Postgres | Media a largo plazo | Catastrófico — pérdide de todos los negocios | No hay backup verificado | Configurar backup automático + restore probado en Coolify |
+| ~~Pérdida total de datos ante falla de Postgres~~ | — | — | ~~No hay backup verificado~~ | ✅ Resuelto: backup diario a R2 (30d) + restore probado (2026-08-07) |
 | Evolution API se satura con muchas instancias | Media si crecen negocios | WhatsApp deja de responder para varios negocios a la vez | Una sola instalación de Evolution API sin límite documentado | Probar carga, definir tope de negocios por instancia de Evolution, documentar plan de escalado |
 | Pedido "enviado a POS" pero nunca llega al POS real | Alta (para cualquier negocio con POS) | El negocio cree que el pedido fue procesado y no lo fue | `LoggingPosProvider` es un stub | Implementar conector real o dejar clarísimo en el producto que es "simulado" |
 | Un negocio con mucho tráfico afecta a los demás | Media | Degradación cruzada entre tenants (noisy neighbor) | Sin límites de uso ni colas separadas por negocio | Cuotas por plan + límites de rate por `businessId` en la cola BullMQ |
@@ -108,7 +108,7 @@ Objetivo: que lo que ya vendés hoy no se caiga ni se rompa por descuido básico
 - [x] `@nestjs/throttler` como guard global (`APP_GUARD` en `app.module.ts`) — cubre `/auth/login` y el resto de endpoints por defecto. *(`1a7eddf`, 2026-08-07)*
 - [x] `helmet` — headers de seguridad HTTP aplicados globalmente en `main.ts` (CSP desactivada porque `/docs` sirve Swagger UI con scripts inline). *(2026-08-07)*
 - [x] Reset de contraseña vía email (token de un solo uso, expira). *(`c039e01`, 2026-08-07)*
-- [ ] Backup automático de Postgres en Coolify (diario, con retención) + una prueba real de restore.
+- [x] Backup automático de Postgres en Coolify (diario 3am UTC a Cloudflare R2, retención 30 días en S3 / 3 días local) + prueba real de restore verificada con datos íntegros. Runbook documentado en `DEPLOY.md` §6. *(2026-08-07)*
 - [ ] Sentry (o equivalente) para errores de backend y frontend.
 - [ ] Alerta simple si `/health` falla o si el webhook de WhatsApp no recibe eventos en X minutos (uptime monitor tipo Better Uptime / UptimeRobot apuntando a `/health`).
 - [ ] Completar tests: webhook de WhatsApp, products, promotions, businesses (subir de 8 a al menos ~20 specs, priorizando el camino crítico del bot).
@@ -156,7 +156,7 @@ Objetivo: que valga más que "un bot de WhatsApp genérico".
 
 1. ~~Rate limiting + helmet en endpoints públicos~~ — ✅ hecho (2026-08-07).
 2. ~~Reset de password~~ — ✅ hecho (2026-08-07).
-3. Backup automático de Postgres verificado — un solo evento sin esto es catastrófico e irreversible.
+3. ~~Backup automático de Postgres verificado~~ — ✅ hecho, con restore probado (2026-08-07).
 4. Alerting básico (uptime + Sentry) — hoy te enterás de que algo falló porque el cliente se queja, no antes.
 5. Definir y construir el flujo de cobro (Fase 2) — sin esto, técnicamente no es un SaaS, es una herramienta interna que usan terceros gratis.
 
