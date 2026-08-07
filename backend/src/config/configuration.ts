@@ -27,4 +27,20 @@ export default () => ({
   pos: {
     webhookSecret: process.env.POS_WEBHOOK_SECRET ?? '',
   },
+  /**
+   * Proteccion anti fuerza bruta. Dos capas independientes, ambas aplican
+   * a /auth/login sin importar el rol (superadmin, ADMIN o AGENT usan el
+   * mismo endpoint):
+   *  - throttle: limite de intentos por IP en una ventana de tiempo
+   *    (bloquea ataques automatizados desde una sola direccion).
+   *  - lockout: bloqueo de LA CUENTA (por email) tras N intentos fallidos,
+   *    sin importar desde cuantas IPs distintas vengan (bloquea ataques
+   *    distribuidos/rotacion de IP contra un usuario puntual).
+   */
+  authSecurity: {
+    loginThrottleLimit: parseInt(process.env.LOGIN_THROTTLE_LIMIT ?? '5', 10),
+    loginThrottleTtlMs: parseInt(process.env.LOGIN_THROTTLE_TTL_MS ?? '60000', 10),
+    loginMaxFailedAttempts: parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS ?? '5', 10),
+    loginLockoutMinutes: parseInt(process.env.LOGIN_LOCKOUT_MINUTES ?? '15', 10),
+  },
 });

@@ -35,6 +35,38 @@ export class UsersService {
   }
 
   /**
+   * Suma un intento de login fallido y, si llega al umbral, bloquea la
+   * cuenta hasta `lockedUntil`. Independiente del rate limit por IP: esto
+   * protege contra ataques distribuidos (muchas IPs contra un mismo email).
+   */
+  async registerFailedLogin(
+    userId: string,
+    maxAttempts: number,
+    lockoutMinutes: number,
+  ): Promise<void> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginAttempts: { increment: 1 } },
+    });
+    if (user.failedLoginAttempts >= maxAttempts) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          lockedUntil: new Date(Date.now() + lockoutMinutes * 60_000),
+        },
+      });
+    }
+  }
+
+  /** Resetea el contador de intentos fallidos y el bloqueo tras un login exitoso. */
+  resetFailedLogins(userId: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginAttempts: 0, lockedUntil: null },
+    });
+  }
+
+  /**
    * Usado tanto por SuperAdminService (crear el primer ADMIN de un negocio
    * nuevo) como por UsersController (un ADMIN agrega empleados a su propio
    * negocio): hashea la contraseña y valida que el email no exista.

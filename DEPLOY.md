@@ -137,6 +137,8 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 | `EVOLUTION_API_KEY` | si | API key real de esa instancia |
 | `WHATSAPP_WEBHOOK_SECRET` | si | valor propio; el superadmin lo usa al registrar el webhook de cada instancia nueva |
 | `POS_WEBHOOK_SECRET` | si | valor propio para `POST /pos/webhook/status` |
+| `LOGIN_THROTTLE_LIMIT` / `LOGIN_THROTTLE_TTL_MS` | no (tiene default) | Anti fuerza bruta por IP en `/auth/login`. Default `5` intentos por `60000` ms (1 min) |
+| `LOGIN_MAX_FAILED_ATTEMPTS` / `LOGIN_LOCKOUT_MINUTES` | no (tiene default) | Anti fuerza bruta por CUENTA (independiente de la IP): tras `5` intentos fallidos consecutivos, la cuenta queda bloqueada `15` minutos |
 
 > Nota: `EVOLUTION_INSTANCE_NAME` ya no existe — cada negocio (tenant) tiene su propia
 > instancia, creada desde `/superadmin`, guardada en `Business.whatsappInstanceId`. No hay un
@@ -193,3 +195,7 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
   aleatorios, distintos de los de desarrollo — nunca los que estan en `.env.example`.
 - `CORS_ORIGINS` no debe quedar vacio en produccion (si esta vacio, se acepta cualquier origen).
 - HTTPS activo en ambos dominios (Coolify lo gestiona automaticamente via Traefik).
+- `/auth/login` ya tiene proteccion anti fuerza bruta por defecto (limite por IP + bloqueo de
+  cuenta tras intentos fallidos, ver tabla de variables arriba); no requiere nada adicional al
+  desplegar, pero se puede ajustar con `LOGIN_THROTTLE_LIMIT`/`LOGIN_MAX_FAILED_ATTEMPTS` si hace
+  falta.

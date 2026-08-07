@@ -118,29 +118,29 @@ enum BotIntentType {
 // ---------------------------------------------------------------------------
 
 model Business {
-  id                      String                   @id @default(cuid())
-  name                    String
+  id                       String                   @id @default(cuid())
+  name                     String
   /// Nombre de la instancia de Evolution API (unico). Se genera solo al
   /// crear el negocio desde el panel superadmin.
-  whatsappInstanceId      String?
+  whatsappInstanceId       String?
   whatsappConnectionStatus WhatsappConnectionStatus @default(PENDING)
   /// Detalle del ultimo error al crear/conectar la instancia (solo si
   /// whatsappConnectionStatus = ERROR). Se limpia al reintentar con exito.
-  whatsappConnectionError String?
+  whatsappConnectionError  String?
   /// Direccion donde el cliente recoge su pedido. El negocio solo maneja
   /// servicio de recoleccion (pickup) por ahora, sin domicilio.
-  pickupAddress           String?
+  pickupAddress            String?
   /// Interruptor maestro: si es false, el bot no responde en NINGUNA
   /// conversacion del negocio, sin importar el botEnabled de cada
   /// conversacion individual. Pensado para pausar todo (cerrado, mantenimiento).
-  botEnabled              Boolean  @default(true)
-  waitingThresholdMinutes Int      @default(3)
+  botEnabled               Boolean                  @default(true)
+  waitingThresholdMinutes  Int                      @default(3)
   /// Si es true, PATCH /conversations/:id/release-control reactiva el bot al
   /// liberar el control humano, salvo que la request indique explicitamente
   /// lo contrario con { reactivateBot: false }.
-  reactivateBotOnRelease  Boolean  @default(false)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  reactivateBotOnRelease   Boolean                  @default(false)
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
 
   users         User[]
   customers     Customer[]
@@ -156,22 +156,31 @@ model Business {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  businessId   String
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         UserRole @default(ADMIN)
+  id                  String    @id @default(cuid())
+  businessId          String
+  email               String    @unique
+  passwordHash        String
+  name                String
+  role                UserRole  @default(ADMIN)
   /// Dueño de la plataforma (vos): puede entrar al panel /superadmin y ver
   /// TODOS los negocios, ademas de operar el suyo propio como cualquier
   /// ADMIN normal. No tiene nada que ver con el rol dentro de su negocio.
-  isSuperAdmin Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isSuperAdmin        Boolean   @default(false)
+  /// Cantidad de intentos de login fallidos consecutivos. Se resetea a 0 en
+  /// cada login exitoso. Usado junto con lockedUntil para bloquear la CUENTA
+  /// (no solo la IP) ante fuerza bruta distribuida. Ver AuthService.login.
+  failedLoginAttempts Int       @default(0)
+  /// Si esta en el futuro, el login se rechaza aunque la contraseña sea
+  /// correcta (cuenta bloqueada temporalmente por demasiados intentos
+  /// fallidos). Se limpia solo (vuelve a null) en el siguiente login exitoso
+  /// una vez que la fecha ya paso.
+  lockedUntil         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  business             Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business              Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[]
-  sentMessages         Message[]      @relation("MessageSender")
+  sentMessages          Message[]      @relation("MessageSender")
 
   @@index([businessId])
   @@map("users")
@@ -215,9 +224,9 @@ model Conversation {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
-  business     Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  assignedUser User?       @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  business     Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedUser User?      @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
   messages     Message[]
   orders       Order[]
   botStates    BotState[]

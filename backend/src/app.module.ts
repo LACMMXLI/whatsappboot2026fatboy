@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { BullmqModule } from './queue/bullmq.module';
@@ -24,6 +26,16 @@ import { SuperAdminModule } from './modules/superadmin/superadmin.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    // Rate limit por IP para TODA la API (defensa base). Endpoints publicos
+    // sensibles (login, webhooks) definen limites mas estrictos con
+    // @Throttle a nivel de ruta. Ver src/config/configuration.ts.
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: () => ({
+        throttlers: [{ ttl: 60_000, limit: 100 }],
+      }),
+    }),
     PrismaModule,
     BullmqModule,
     HealthModule,
@@ -43,5 +55,6 @@ import { SuperAdminModule } from './modules/superadmin/superadmin.module';
     PosModule,
     RealtimeModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
