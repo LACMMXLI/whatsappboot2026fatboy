@@ -2,12 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+
+  // Headers de seguridad HTTP (X-Frame-Options, X-Content-Type-Options, HSTS, etc.).
+  // CSP desactivada porque este proceso tambien sirve la UI de Swagger (/docs),
+  // que carga scripts/estilos inline incompatibles con la CSP por defecto de helmet.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
