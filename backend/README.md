@@ -166,6 +166,10 @@ Notas:
 - El negocio es **solo pickup**: no hay paso de elegir domicilio/entrega. La confirmacion final
   incluye `Business.pickupAddress` (configurable via `PATCH /businesses/me/settings`) y el nombre
   del cliente.
+- `Business.botEnabled` es el interruptor maestro (tambien via `PATCH /businesses/me/settings`):
+  si es `false`, `BotEngineService` no responde en NINGUNA conversacion del negocio, sin importar
+  el `botEnabled` de cada chat individual. Los mensajes entrantes se siguen guardando y viendo en
+  el CRM, solo no se generan respuestas automaticas.
 - La categoria que el cliente esta navegando se guarda en `Conversation.context.selectedCategory`
   para que "menu"/nombrar un producto dentro de `BROWSING_MENU` siga acotado a esa categoria.
 - Seleccion de categoria/promocion admite texto libre (nombre) o el numero de la lista mostrada.

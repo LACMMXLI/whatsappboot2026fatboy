@@ -41,6 +41,7 @@ export class BusinessesService {
       waitingThresholdMinutes?: number;
       reactivateBotOnRelease?: boolean;
       pickupAddress?: string;
+      botEnabled?: boolean;
     },
   ): Promise<Business> {
     return this.prisma.business.update({

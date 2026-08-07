@@ -45,7 +45,7 @@ src/
     chats/        ChatsView (sidebar + chat, la vista "Chats" del tab superior)
     admin/        ProductsScreen (CRUD + carga masiva CSV/JSON), PromotionsScreen (CRUD, con
                   precio), BotConfigScreen (textos + palabras clave del bot) y
-                  BusinessSettingsScreen (direccion de recoleccion)
+                  BusinessSettingsScreen (interruptor maestro del bot + direccion de recoleccion)
 ```
 
 `AppShell` ahora tiene 5 pestañas (Chats / Menu / Promociones / Bot / Negocio) en el header, sin
@@ -80,6 +80,8 @@ centrada discreta (no una burbuja de chat).
 4. Responder, activar/desactivar el bot, tomar control, liberar control o marcar como resuelto
    son botones grandes dentro del mismo panel de chat — no hay que navegar a otra pantalla.
    "Liberar control" solo aparece si hay un agente asignado o el bot esta desactivado.
+   Ese `BotToggle` es **por conversacion**. Para apagar el bot en todos los chats de una sola vez
+   (ej. el negocio esta cerrado) esta el interruptor maestro en la pestaña "Negocio".
 
 ## Menu / Productos, Promociones y Configuracion del bot
 

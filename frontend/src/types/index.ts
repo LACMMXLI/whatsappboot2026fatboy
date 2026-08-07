@@ -204,6 +204,7 @@ export interface Business {
   name: string;
   whatsappInstanceId: string | null;
   pickupAddress: string | null;
+  botEnabled: boolean;
   waitingThresholdMinutes: number;
   reactivateBotOnRelease: boolean;
   createdAt: string;
@@ -212,6 +213,7 @@ export interface Business {
 
 export interface BusinessSettingsInput {
   pickupAddress?: string;
+  botEnabled?: boolean;
   waitingThresholdMinutes?: number;
   reactivateBotOnRelease?: boolean;
 }

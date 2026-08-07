@@ -42,6 +42,12 @@ export class BotEngineService {
       this.logger.warn(`Conversacion ${job.conversationId} no encontrada`);
       return;
     }
+    if (!conversation.business.botEnabled) {
+      this.logger.debug(
+        `Bot desactivado a nivel de negocio ${job.businessId}, se omite respuesta automatica`,
+      );
+      return;
+    }
     if (!conversation.botEnabled) {
       this.logger.debug(
         `Bot deshabilitado para conversacion ${conversation.id}, se omite respuesta automatica`,

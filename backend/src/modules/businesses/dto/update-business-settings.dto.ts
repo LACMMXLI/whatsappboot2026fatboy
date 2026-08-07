@@ -22,6 +22,15 @@ export class UpdateBusinessSettingsDto {
   pickupAddress?: string;
 
   @ApiPropertyOptional({
+    example: true,
+    description:
+      'Interruptor maestro del bot: si es false, no responde automaticamente en NINGUNA conversacion del negocio (sin importar el estado de cada chat individual). Util para pausar todo (cerrado, mantenimiento).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  botEnabled?: boolean;
+
+  @ApiPropertyOptional({
     example: false,
     description:
       'Si es true, liberar el control humano de una conversacion (PATCH /conversations/:id/release-control) reactiva el bot automaticamente salvo que la request indique lo contrario',

@@ -109,6 +109,10 @@ model Business {
   /// Direccion donde el cliente recoge su pedido. El negocio solo maneja
   /// servicio de recoleccion (pickup) por ahora, sin domicilio.
   pickupAddress           String?
+  /// Interruptor maestro: si es false, el bot no responde en NINGUNA
+  /// conversacion del negocio, sin importar el botEnabled de cada
+  /// conversacion individual. Pensado para pausar todo (cerrado, mantenimiento).
+  botEnabled              Boolean  @default(true)
   waitingThresholdMinutes Int      @default(3)
   /// Si es true, PATCH /conversations/:id/release-control reactiva el bot al
   /// liberar el control humano, salvo que la request indique explicitamente
