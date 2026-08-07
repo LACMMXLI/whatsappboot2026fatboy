@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import { ForgotPasswordScreen } from './ForgotPasswordScreen';
 
 export function LoginScreen() {
   const login = useAuthStore((s) => s.login);
@@ -7,11 +8,16 @@ export function LoginScreen() {
   const error = useAuthStore((s) => s.error);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [view, setView] = useState<'login' | 'forgot-password'>('login');
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     login(email, password);
   };
+
+  if (view === 'forgot-password') {
+    return <ForgotPasswordScreen onBackToLogin={() => setView('login')} />;
+  }
 
   return (
     <div className="flex h-full items-center justify-center bg-app-bg px-4">
@@ -43,8 +49,16 @@ export function LoginScreen() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="mb-4 h-14 w-full rounded-xl border border-panel-border bg-panel-elevated px-4 text-base text-text-primary focus:border-brand focus:outline-none"
+          className="mb-2 h-14 w-full rounded-xl border border-panel-border bg-panel-elevated px-4 text-base text-text-primary focus:border-brand focus:outline-none"
         />
+
+        <button
+          type="button"
+          onClick={() => setView('forgot-password')}
+          className="mb-4 text-sm font-medium text-brand hover:underline"
+        >
+          ¿Olvidaste tu contraseña?
+        </button>
 
         {error && <p className="mb-4 text-sm text-status-error">{error}</p>}
 

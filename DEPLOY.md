@@ -139,6 +139,9 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 | `POS_WEBHOOK_SECRET` | si | valor propio para `POST /pos/webhook/status` |
 | `LOGIN_THROTTLE_LIMIT` / `LOGIN_THROTTLE_TTL_MS` | no (tiene default) | Anti fuerza bruta por IP en `/auth/login`. Default `5` intentos por `60000` ms (1 min) |
 | `LOGIN_MAX_FAILED_ATTEMPTS` / `LOGIN_LOCKOUT_MINUTES` | no (tiene default) | Anti fuerza bruta por CUENTA (independiente de la IP): tras `5` intentos fallidos consecutivos, la cuenta queda bloqueada `15` minutos |
+| `FRONTEND_URL` | **si**, para que "olvide mi contraseña" funcione | URL publica del CRM, ej. `https://crm.tudominio.com` (SIN slash final). Sin esto, el link de recuperacion no se puede armar |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | **si**, para que "olvide mi contraseña" funcione | Credenciales SMTP de tu proveedor (Gmail, SendGrid, Mailgun, Resend, SES, etc.). Sin `SMTP_HOST`, el backend NO envia el email — solo lo deja en el log del server (util en desarrollo, no sirve para produccion) |
+| `PASSWORD_RESET_TTL_MINUTES` / `PASSWORD_RESET_THROTTLE_LIMIT` / `PASSWORD_RESET_THROTTLE_TTL_MS` | no (tiene default) | Vencimiento del link (`60` min) y anti abuso del endpoint (`3` solicitudes cada `10` min por IP) |
 
 > Nota: `EVOLUTION_INSTANCE_NAME` ya no existe — cada negocio (tenant) tiene su propia
 > instancia, creada desde `/superadmin`, guardada en `Business.whatsappInstanceId`. No hay un
@@ -188,6 +191,10 @@ alcanza con reiniciar el contenedor), porque quedaron horneadas en los archivos 
 - [ ] Confirmar un pedido (`PATCH /orders/:id/confirm`) y enviarlo al POS
       (`POST /pos/orders/:id/send`) — sin un POS real conectado, verificar el log del backend
       que confirma el envio simulado
+- [ ] "¿Olvidaste tu contraseña?" desde el login → llega un email real con el link (si no llega,
+      revisar que `SMTP_HOST`/`FRONTEND_URL` esten seteados y el log del backend por errores de
+      SMTP) → el link abre `/reset-password`, permite elegir contraseña nueva, y con esa
+      contraseña nueva el login funciona
 
 ## 6. Seguridad antes de ir a produccion
 

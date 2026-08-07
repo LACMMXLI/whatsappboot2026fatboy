@@ -178,12 +178,32 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  business              Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business              Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[]
-  sentMessages          Message[]      @relation("MessageSender")
+  sentMessages          Message[]            @relation("MessageSender")
+  passwordResetTokens   PasswordResetToken[]
 
   @@index([businessId])
   @@map("users")
+}
+
+/// Token de un solo uso para "olvide mi contraseña". Solo se guarda el HASH
+/// (sha256) del token, nunca el valor crudo: el crudo va por email y no debe
+/// poder reconstruirse a partir de la base de datos. Ver AuthService.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  /// Se completa cuando el token se usa para cambiar la contraseña. Un
+  /// token usado nunca se vuelve a aceptar aunque no haya vencido.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ---------------------------------------------------------------------------

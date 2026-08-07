@@ -42,5 +42,29 @@ export default () => ({
     loginThrottleTtlMs: parseInt(process.env.LOGIN_THROTTLE_TTL_MS ?? '60000', 10),
     loginMaxFailedAttempts: parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS ?? '5', 10),
     loginLockoutMinutes: parseInt(process.env.LOGIN_LOCKOUT_MINUTES ?? '15', 10),
+    passwordResetTtlMinutes: parseInt(
+      process.env.PASSWORD_RESET_TTL_MINUTES ?? '60',
+      10,
+    ),
+    passwordResetThrottleLimit: parseInt(
+      process.env.PASSWORD_RESET_THROTTLE_LIMIT ?? '3',
+      10,
+    ),
+    passwordResetThrottleTtlMs: parseInt(
+      process.env.PASSWORD_RESET_THROTTLE_TTL_MS ?? '600000',
+      10,
+    ),
+  },
+  /** URL publica del CRM (frontend, SIN slash final). Se usa para armar el
+   *  link de "olvide mi contraseña" que se envia por email, ej.
+   *  {frontendUrl}/reset-password?token=... */
+  frontendUrl: (process.env.FRONTEND_URL ?? '').replace(/\/$/, ''),
+  smtp: {
+    host: process.env.SMTP_HOST ?? '',
+    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    from: process.env.SMTP_FROM ?? 'no-reply@localhost',
   },
 });
