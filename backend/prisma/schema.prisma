@@ -460,6 +460,15 @@ model BotFlowStep {
   order   Int
   message String
   options Json   @default("[]")
+  /// Posicion en el lienzo del editor visual de flujos (frontend). El motor
+  /// del bot nunca lee estos campos, son solo para que el diagrama no se
+  /// reordene solo cada vez que el admin lo abre. NULL = todavia no se
+  /// acomodo visualmente (flujo viejo, o paso recien creado antes del
+  /// primer guardado) -- el frontend le calcula un layout automatico. NO
+  /// usar 0,0 como "sin posicion": 0,0 es una coordenada valida una vez que
+  /// el usuario ya acomodo el nodo ahi.
+  positionX Float?
+  positionY Float?
 
   flow BotFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
 

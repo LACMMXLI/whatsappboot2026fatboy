@@ -195,6 +195,9 @@ export interface BotFlowStep {
   order: number;
   message: string;
   options: BotFlowOption[];
+  /** null = todavia no se acomodo en el lienzo del editor visual (flujo viejo o paso nuevo). */
+  positionX: number | null;
+  positionY: number | null;
 }
 
 /** Flujo personalizado por negocio (ej. "Horarios", "Ubicacion", FAQs propias). */
@@ -214,7 +217,12 @@ export interface BotFlowInput {
   name: string;
   triggers: string[];
   active?: boolean;
-  steps: { message: string; options: BotFlowOption[] }[];
+  steps: {
+    message: string;
+    options: BotFlowOption[];
+    positionX: number | null;
+    positionY: number | null;
+  }[];
 }
 
 export interface Promotion {
