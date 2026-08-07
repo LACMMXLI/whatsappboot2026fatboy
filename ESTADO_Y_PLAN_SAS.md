@@ -110,8 +110,8 @@ Objetivo: que lo que ya vendés hoy no se caiga ni se rompa por descuido básico
 - [x] Reset de contraseña vía email (token de un solo uso, expira). *(`c039e01`, 2026-08-07)*
 - [x] Backup automático de Postgres en Coolify (diario 3am UTC a Cloudflare R2, retención 30 días en S3 / 3 días local) + prueba real de restore verificada con datos íntegros. Runbook documentado en `DEPLOY.md` §6. *(2026-08-07)*
 - [x] Sentry para errores de backend y frontend — desplegado y verificado en producción (evento de prueba confirmado en Sentry → Issues en <1 min). Detalle en `DEPLOY.md` §7. *(2026-08-07)*
-- [ ] Alerta simple si `/health` falla o si el webhook de WhatsApp no recibe eventos en X minutos (uptime monitor tipo Better Uptime / UptimeRobot apuntando a `/health`).
-- [ ] Completar tests: webhook de WhatsApp, products, promotions, businesses (subir de 8 a al menos ~20 specs, priorizando el camino crítico del bot).
+- [ ] **(Pospuesto a propósito, 2026-08-07)** Alerta simple si `/health` falla o si el webhook de WhatsApp no recibe eventos en X minutos (uptime monitor tipo Better Uptime / UptimeRobot apuntando a `/health`). Decisión consciente: no bloquea vender, se retoma cuando el resto de Fase 0/1 esté más avanzado.
+- [ ] **(Pospuesto a propósito, 2026-08-07)** Completar tests: webhook de WhatsApp, products, promotions, businesses (subir de 8 a al menos ~20 specs, priorizando el camino crítico del bot). Misma razón que arriba.
 
 ### Fase 1 — Convertirlo en multi-tenant autoservicio (3–5 semanas)
 Objetivo: que un negocio nuevo se pueda dar de alta sin que vos hagas nada a mano.
